@@ -1,0 +1,8 @@
+{
+  "name": "spec-upkeep",
+  "version": "0.1.0",
+  "description": "Keeps project docs honest: doc-drift reports stale file paths, symbols, commands and links cited in CLAUDE.md, rules and standards, and the check-docs skill fixes them to match the code.",
+  "author": { "name": "Matei Barba" },
+  "license": "MIT",
+  "repository": "https://github.com/BarbaMatei/ai-dev-team"
+}
