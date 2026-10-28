@@ -200,3 +200,11 @@ release();
   assert.equal(marks.length, 16);
   marks.forEach((m, i) => assert.equal(m, i % 2 === 0 ? 'start' : 'end'));
 });
+
+test('scoped-test run through a symlinked or junctioned folder still runs', () => {
+  const link = path.join(base, 'scripts-link');
+  fs.symlinkSync(path.dirname(script), link, 'junction');
+  const r = spawnSync(process.execPath, [path.join(link, 'scoped-test.mjs')], { encoding: 'utf8' });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /^guardrails: usage/);
+});

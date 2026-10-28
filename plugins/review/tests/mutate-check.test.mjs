@@ -151,3 +151,29 @@ test('SIGTERM mid-run restores the file', { skip: process.platform === 'win32' }
   assert.equal(await closed, 130);
   assert.equal(fs.readFileSync(file, 'utf8'), 'one\nkeep\nthree\n');
 });
+
+test('a restore that cannot succeed reports INVALID: file not restored, no stack trace', () => {
+  const swap = [
+    "import fs from 'node:fs';",
+    "const l = fs.readFileSync('src.txt', 'utf8').split('\\n');",
+    "if (l[1] === '') { fs.rmSync('src.txt'); fs.mkdirSync('src.txt'); }",
+    'process.exit(l[1] === "keep" ? 0 : 1);',
+    '',
+  ].join('\n');
+  const dir = proj('one\nkeep\nthree\n', undefined, { 'check.mjs': swap });
+  const r = mc(dir, ['--line', '2']);
+  assert.equal(r.code, 1, r.out + r.err);
+  assert.match(r.out, /^INVALID: file not restored \(.*src\.txt\): \w+$/m);
+  assert.ok(!/\n\s+at /.test(r.err), r.err);
+});
+
+test('scripts run through a symlinked or junctioned folder still do their work', () => {
+  const link = path.join(base, 'scripts-link');
+  fs.symlinkSync(path.dirname(script), link, 'junction');
+  const dir = repo({ 'src.txt': 'a\n' }, {});
+  const m = runScript(path.join(link, 'mutate-check.mjs'), dir, []);
+  assert.equal(m.code, 2);
+  assert.match(m.err, /^review: usage/);
+  const d = runScript(path.join(link, 'decisions.mjs'), dir, []);
+  assert.equal(d.out.trim(), 'no decisions file configured');
+});

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { projectRoot, loadConfig } from './lib/project.mjs';
 
 const clean = (text) => text.replace(/\x1b\[[0-9;]*m/g, '').replace(/\r/g, '');
@@ -193,4 +193,4 @@ async function main() {
   process.exitCode = s.code;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await main();
+if (process.argv[1] && fs.realpathSync(path.resolve(process.argv[1])) === fs.realpathSync(fileURLToPath(import.meta.url))) await main();

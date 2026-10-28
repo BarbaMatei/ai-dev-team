@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,24 +92,35 @@ async function main() {
   const baseline = await runCommand(command, cwd);
   if (baseline.code !== 0) return say('INVALID: the test fails before the line is broken', false);
 
-  const restore = () => fs.writeFileSync(target, original);
-  const onSignal = () => {
-    current?.kill();
-    try {
-      restore();
-    } finally {
-      process.exit(130);
+  const restore = () => {
+    for (let i = 0; ; i++) {
+      try {
+        return void fs.writeFileSync(target, original);
+      } catch (e) {
+        if (i >= 4) return e;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+      }
     }
+  };
+  const onSignal = () => {
+    if (current?.pid) {
+      if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(current.pid), '/T', '/F']);
+      else current.kill();
+    }
+    if (restore()) process.stderr.write(`review: file NOT restored: ${target}\n`);
+    process.exit(130);
   };
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
   let broken;
+  let err;
   try {
     fs.writeFileSync(target, mutant);
     broken = await runCommand(command, cwd);
   } finally {
-    restore();
+    err = restore();
   }
+  if (err) return say(`INVALID: file not restored (${target}): ${err.code ?? err.message}`, false);
   if (!fs.readFileSync(target).equals(original)) return say('INVALID: file not restored');
 
   if (broken.code === 0) return say('NOT GUARDED: the test still passes with this line broken - check that --test matches a test');
@@ -121,4 +132,4 @@ async function main() {
   say('GUARDED', true, 0);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+if (process.argv[1] && fs.realpathSync(path.resolve(process.argv[1])) === fs.realpathSync(fileURLToPath(import.meta.url))) await main();
