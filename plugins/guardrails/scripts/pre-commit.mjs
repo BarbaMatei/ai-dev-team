@@ -4,9 +4,35 @@ import { projectRoot, loadConfig, matchesAny } from './lib/project.mjs';
 import { findSecrets, isCommentLine, DEFAULT_COMMENT_EXTENSIONS } from './checks.mjs';
 
 const root = projectRoot(process.cwd());
+function strings(value, key) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((v) => typeof v !== 'string')) throw new Error(`.claude/ai-dev-team.json: ${key} must be an array of strings`);
+  return value;
+}
+
+function readSettings(cfg) {
+  const secrets = cfg.secrets ?? {};
+  const comments = cfg.comments ?? {};
+  if (typeof secrets !== 'object' || Array.isArray(secrets)) throw new Error('.claude/ai-dev-team.json: secrets must be an object');
+  if (typeof comments !== 'object' || Array.isArray(comments)) throw new Error('.claude/ai-dev-team.json: comments must be an object');
+  if (secrets.hint !== undefined && typeof secrets.hint !== 'string') throw new Error('.claude/ai-dev-team.json: secrets.hint must be a string');
+  const patterns = strings(secrets.patterns, 'secrets.patterns');
+  for (const p of patterns) {
+    try {
+      new RegExp(p);
+    } catch (e) {
+      throw new Error(`.claude/ai-dev-team.json: secrets.patterns: ${e.message}`);
+    }
+  }
+  const extensions = comments.extensions === undefined ? DEFAULT_COMMENT_EXTENSIONS : strings(comments.extensions, 'comments.extensions');
+  return { patterns, allowPaths: strings(secrets.allowPaths, 'secrets.allowPaths'), hint: secrets.hint, extensions: extensions.map((e) => e.toLowerCase()) };
+}
+
 let config;
+let settings;
 try {
   config = loadConfig(root);
+  settings = readSettings(config);
 } catch (e) {
   process.stderr.write(`guardrails: ${e.message}\n`);
   process.exit(2);
@@ -31,7 +57,7 @@ function addedLines(file) {
     const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
     if (h) {
       next = Number(h[1]);
-    } else if (next > 0 && raw.startsWith('+') && !raw.startsWith('+++')) {
+    } else if (next > 0 && raw.startsWith('+')) {
       out.push({ no: next++, text: raw.slice(1).replace(/\r$/, '') });
     }
   }
@@ -39,9 +65,7 @@ function addedLines(file) {
 }
 
 const files = git(['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z']).split('\0').filter(Boolean);
-const allowPaths = config.secrets?.allowPaths ?? [];
-const extra = config.secrets?.patterns ?? [];
-const exts = (config.comments?.extensions ?? DEFAULT_COMMENT_EXTENSIONS).map((e) => e.toLowerCase());
+const { allowPaths, patterns: extra, extensions: exts, hint } = settings;
 
 const secretHits = [];
 const commentHits = [];
@@ -57,7 +81,7 @@ for (const file of files) {
 
 if (secretHits.length) {
   for (const h of secretHits) console.error(`[blocked] potential secret: ${h}`);
-  console.error(`Commit blocked (secret guard). ${config.secrets?.hint ?? 'Move the secret out of the repository.'}`);
+  console.error(`Commit blocked (secret guard). ${hint ??'Move the secret out of the repository.'}`);
   process.exit(1);
 }
 

@@ -132,6 +132,35 @@ test('10 comment extensions are respected and configurable', () => {
   assert.equal(run(d2).code, 1);
 });
 
+test('added lines starting with ++ are checked and counted', () => {
+  const d = repo();
+  put(d, 'a.cs', '++x; // c\nint y; // d\n');
+  const r = run(d);
+  assert.equal(r.code, 1);
+  assert.ok(r.out.includes('a.cs:1: ++x; // c'));
+  assert.ok(r.out.includes('a.cs:2: int y; // d'));
+});
+
+test('an invalid secret regex is a config error', () => {
+  const d = repo({ secrets: { patterns: ['('] } });
+  put(d, 'a.cs', 'int x;\n');
+  const r = run(d);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /^guardrails: \.claude\/ai-dev-team\.json: secrets\.patterns: /);
+  assert.equal(r.err.trim().split('\n').length, 1);
+});
+
+test('wrong-typed config keys are config errors', () => {
+  for (const cfg of [{ secrets: { patterns: 'abc' } }, { secrets: { allowPaths: 'docs/**' } }, { comments: { extensions: '.cs' } }, { secrets: { hint: 5 } }]) {
+    const d = repo(cfg);
+    put(d, 'a.cs', 'int x;\n');
+    const r = run(d);
+    assert.equal(r.code, 2, JSON.stringify(cfg));
+    assert.match(r.err, /^guardrails: \.claude\/ai-dev-team\.json: /);
+    assert.equal(r.err.trim().split('\n').length, 1);
+  }
+});
+
 test('only added lines are checked, with new-file numbers', () => {
   const d = repo();
   put(d, 'a.cs', 'int a;\nint b;\n');
