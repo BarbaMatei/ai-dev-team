@@ -1,7 +1,7 @@
 {
   "name": "guardrails",
   "version": "0.1.0",
-  "description": "Git pre-commit secret and comment checks, driven by an optional per-project config.",
+  "description": "Git pre-commit secret and comment checks, Claude Code hooks that apply them while Claude edits, and a scoped test runner that prints only totals and failures.",
   "author": { "name": "Matei Barba" },
   "license": "MIT",
   "repository": "https://github.com/BarbaMatei/ai-dev-team"

@@ -5,7 +5,7 @@ description: Use when a bolt's (or any branch's) code is complete and its tests 
 
 # Review bolt
 
-You review one finished branch and write the owner's PR body. At most two review rounds; what round 2 leaves goes under "Needs owner" with the default you would take. You orchestrate: fresh subagents write tests and fixes.
+You review one finished branch (a bolt = one unit of work on its own branch, reviewed as one PR) and write the owner's PR body. At most two review rounds; what round 2 leaves goes under "Needs owner" with the default you would take. You orchestrate: fresh subagents write tests and fixes.
 
 **Skills and subagents you call return intermediate results: after each one, continue with the next step. Your reply ends only at the last step.**
 
@@ -65,7 +65,7 @@ Test: run only it: <command> in <dir>, with {filter} replaced by <filter>. It fa
 
 ## Commit and check
 
-17. Run every regression test, scoped. One fails → steps 9-10 for it, once. Then commit with a one-line conventional message.
+17. Run every regression test, scoped, plus the scoped tests covering every file the fixes changed (same scoping as step 5). One fails → back to that fixer once (steps 9-10); still failing → "Needs owner". Then commit with a one-line conventional message.
 18. Per fix: `<kind>` is `-` → record `not mutate-checkable`. Else confirm the "now" text is still at `<file:line>` (re-find it if lines moved), then `node "<scripts>/mutate-check.mjs" --file <file> --line <n> --replace "<pre-fix text>" --kind <kind> --test "<filter>"`, quoted so the shell passes both texts unchanged; empty pre-fix → omit `--replace`.
 19. `NOT GUARDED` → once per fix, one fresh sonnet Agent: "This test still passes when line <n> of <file> becomes <pre-fix>. Strengthen only the test so it fails then and passes now; run it; do not commit." Commit, re-run mutate-check once; still not `GUARDED` → "Needs owner". `INVALID: build broke` → retry once with a `--replace` that compiles. Record each final verdict.
 20. Per PROVEN finding: `node "<scripts>/decisions.mjs" --path <file> --text "<claim>"`; `decision:` lines → "Past decisions".

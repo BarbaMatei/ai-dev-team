@@ -24,6 +24,8 @@ fi
 exec node "${dir}scripts/pre-commit.mjs"
 ```
 
+Comment lines are checked only in `.cs .ts .tsx .js .jsx .mjs .cjs .java .kt .go .rs .swift .c .cpp .h .scss` files; `#`-comment languages (Python, shell, YAML) are not checked unless added via `comments.extensions`.
+
 A matched secret is reported as `file:line`, never printed. Added comment lines are listed and block the commit; set `COMMENTS_OK=1` when every listed line is deliberate. Invalid config: one line on stderr, exit 2.
 
 ## Claude Code hooks

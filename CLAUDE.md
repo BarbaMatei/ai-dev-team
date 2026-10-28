@@ -11,6 +11,7 @@ Public Claude Code plugin marketplace of small, standalone plugins. Rules for wo
 - Messages never print a matched secret, only `file:line`.
 - Per-project settings live in `<project>/.claude/ai-dev-team.json`; missing file = defaults, invalid = one line on stderr, exit 2.
 - Versioning: semver in `plugins/<name>/.claude-plugin/plugin.json`; tag `<name>-vX.Y.Z`.
+- Bump the plugin's `version` in its `plugin.json` with every released change under `plugins/<name>/` (installs update by version), then tag `<name>-vX.Y.Z`.
 - Commits: conventional, one-sentence subject, no body, no trailers. Never `--no-verify`.
 - Comments are a last resort: one short line, only for a non-obvious why.
 - Test: `node --test "plugins/*/tests/*.test.mjs" "tests/*.test.mjs"`

@@ -84,8 +84,8 @@ async function main() {
   const newLine = replace ?? '';
   const command = t.command.replaceAll('{filter}', () => test);
   const cwd = path.join(root, t.cwd);
-  const say = (verdict, withDiff = true, code = 1) => {
-    process.stdout.write(`${[verdict, ...(withDiff ? [`- ${oldLine}`, `+ ${newLine}`] : [])].join('\n')}\n`);
+  const say = (verdict, withDiff = true, code = 1, note = []) => {
+    process.stdout.write(`${[verdict, ...(withDiff ? [`- ${oldLine}`, `+ ${newLine}`] : []), ...note].join('\n')}\n`);
     process.exitCode = code;
   };
 
@@ -129,7 +129,7 @@ async function main() {
   }
   const after = await runCommand(command, cwd);
   if (after.code !== 0) return say('INVALID: the test fails after restoring the file');
-  say('GUARDED', true, 0);
+  say('GUARDED', true, 0, t.buildError ? [] : [`note: no buildError configured for ${kind} — a build break would look like GUARDED`]);
 }
 
 if (process.argv[1] && fs.realpathSync(path.resolve(process.argv[1])) === fs.realpathSync(fileURLToPath(import.meta.url))) await main();

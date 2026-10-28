@@ -14,11 +14,11 @@ Proven code review for Claude Code: a review finding counts only when a failing 
 | `decisions.mjs` | Matches a finding to past owner decisions | `decisions` |
 | `mutate-check.mjs` | Breaks one line, requires the test to fail, restores the file | `tests` |
 
-An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry.
+A bolt is one unit of work on its own branch, reviewed as one PR. An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry.
 
 ```json
 {
-  "tests": { "unit": { "command": "dotnet test App.Tests --filter \"FullyQualifiedName~{filter}\"", "cwd": "src" } },
+  "tests": { "unit": { "command": "dotnet test App.Tests --filter \"FullyQualifiedName~{filter}\"", "cwd": "src", "buildError": "error CS\\d{4}|Build FAILED" } },
   "areas": { "web": ["src/app/**"] },
   "triggers": ["payments", "auth"],
   "decisions": "docs/decisions.md",
@@ -43,6 +43,10 @@ node scripts/areas.mjs touched [--base <ref>] | files <area> | nearby --pattern 
 node scripts/decisions.mjs --path <file> --text "<finding>"
 node scripts/mutate-check.mjs --file <path> --line <n> [--replace <text>] --kind <tests key> --test <filter>
 ```
+
+For compiled languages set `tests.<kind>.buildError` (a regex of your compiler's error lines): without it a mutant that fails to compile reads as `GUARDED`, and mutate-check adds a `note:` line saying so.
+
+review-bolt and sweep-area file proven bugs (with repro and the proving test) as GitHub issues; on a public repo those issues are public, so use a private repo, or a label your private tracker picks up, if that matters.
 
 mutate-check prints `GUARDED` (exit 0), or `NOT GUARDED` / `INVALID: <reason>` (exit 1), and always restores the file. Bad arguments or invalid config: one line on stderr, exit 2.
 

@@ -1,11 +1,12 @@
 {
   "name": "ai-dev-team",
+  "description": "Small standalone Claude Code plugins: guardrails (secret and comment checks, scoped test runner) and review (proven code review).",
   "owner": { "name": "Matei Barba" },
   "plugins": [
     {
       "name": "guardrails",
       "source": "./plugins/guardrails",
-      "description": "Git pre-commit secret and comment checks, driven by an optional per-project config."
+      "description": "Git pre-commit secret and comment checks, Claude Code hooks that apply them while Claude edits, and a scoped test runner that prints only totals and failures."
     },
     {
       "name": "review",

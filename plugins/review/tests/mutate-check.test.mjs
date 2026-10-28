@@ -41,7 +41,7 @@ test('a guarded line gives GUARDED and the file is byte-identical', () => {
   const before = read(dir);
   const r = mc(dir, ['--line', '2']);
   assert.equal(r.code, 0, r.out + r.err);
-  assert.deepEqual(r.out.split('\n'), ['GUARDED', '- keep', '+ ', '']);
+  assert.deepEqual(r.out.split('\n'), ['GUARDED', '- keep', '+ ', 'note: no buildError configured for t — a build break would look like GUARDED', '']);
   assert.deepEqual(read(dir), before);
 });
 
@@ -49,7 +49,7 @@ test('--replace puts the given text on the line', () => {
   const dir = proj('one\nkeep\nthree\n');
   const r = mc(dir, ['--line', '2', '--replace', 'broken']);
   assert.equal(r.code, 0, r.out + r.err);
-  assert.deepEqual(r.out.trimEnd().split('\n'), ['GUARDED', '- keep', '+ broken']);
+  assert.deepEqual(r.out.trimEnd().split('\n'), ['GUARDED', '- keep', '+ broken', 'note: no buildError configured for t — a build break would look like GUARDED']);
 });
 
 test('an unguarded line gives NOT GUARDED with the hint', () => {
@@ -176,4 +176,13 @@ test('scripts run through a symlinked or junctioned folder still do their work',
   assert.match(m.err, /^review: usage/);
   const d = runScript(path.join(link, 'decisions.mjs'), dir, []);
   assert.equal(d.out.trim(), 'no decisions file configured');
+});
+
+test('GUARDED without buildError carries the note, with buildError it does not', () => {
+  const src = ['one', 'keep', 'three', ''].join('\n');
+  const r = mc(proj(src), ['--line', '2']);
+  assert.match(r.out, /^note: no buildError configured for t — a build break would look like GUARDED$/m);
+  assert.ok(r.out.trim().split('\n').length <= 5);
+  const r2 = mc(proj(src, { t: { command: 'node check.mjs', buildError: 'BUILD BROKE' } }), ['--line', '2', '--replace', 'x']);
+  assert.ok(!r2.out.includes('note:'));
 });
