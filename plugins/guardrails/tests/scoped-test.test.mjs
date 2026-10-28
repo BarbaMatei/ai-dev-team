@@ -66,6 +66,19 @@ test('CLI reports NO TESTS RAN with exit 1', () => {
   assert.equal(r.status, 1);
 });
 
+test('CLI reports NO TESTS RAN for the real dotnet no-match line', () => {
+  const dir = project({ tests: { unit: { command: echo('No test matches the given testcase filter FullyQualifiedName~Nope in App.Tests.dll'), format: 'dotnet' } } });
+  const r = run(dir, ['unit', 'x']);
+  assert.match(r.stdout, /NO TESTS RAN/);
+  assert.equal(r.status, 1);
+});
+
+test('parseOutput counts dotnet no-match and no-test-available lines as zero tests', () => {
+  for (const line of ['No test matches the given testcase filter `FullyQualifiedName~Nope` in /x/App.Tests.dll', 'No test is available in /x/App.Tests.dll. Make sure that test discoverers & executors are registered.']) {
+    assert.equal(parseOutput(line, 'dotnet').total, 0);
+  }
+});
+
 test('CLI prints FAIL f/t with failing names and the child exit code', () => {
   const command = `node -e "console.log('Failed!  - Failed: 1, Passed: 2, Skipped: 0, Total: 3'); console.log('  Failed App.Tests.A.B [1 ms]'); process.exit(1)"`;
   const r = run(project({ tests: { unit: { command, format: 'dotnet' } } }), ['unit', 'x']);

@@ -15,6 +15,7 @@ export function parseOutput(text, format) {
     let failed = 0;
     let seen = false;
     for (const l of lines) {
+      if (/No test matches the given testcase filter|No test is available/.test(l)) seen = true;
       if (!/\bTotal:\s*\d+/.test(l)) continue;
       seen = true;
       const num = (k) => Number(new RegExp(`${k}:\\s*(\\d+)`).exec(l)?.[1] ?? 0);
@@ -147,6 +148,8 @@ function runCommand(command, cwd) {
   return new Promise((resolve) => {
     const child = spawn(command, { shell: true, cwd });
     let out = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (out += d));
     child.on('error', (e) => resolve({ code: 1, out: `${out}${e.message}\n` }));
