@@ -224,7 +224,7 @@ test('gh output that is not JSON exits 1 normally and stays silent in the hook',
 
 test('--hook records one PR per commit, counts only gh time and stages each row', () => {
   const mk = (num, day) => ({ ...PR7, number: num, mergedAt: `2026-01-0${day}T12:30:00Z`, body: 'x' });
-  const s = setup({ branch: 'feat/y', config: { metrics: { since: 1 } }, delay: 300, prs: { 1: mk(1, 1), 2: mk(2, 2), 3: mk(3, 3) } });
+  const s = setup({ branch: 'feat/y', config: { metrics: { since: 1 } }, delay: 250, prs: { 1: mk(1, 1), 2: mk(2, 2), 3: mk(3, 3) } });
   const r = run(s, ['--hook', '--hook-timeout', '1']);
   assert.equal(r.code, 0, r.err);
   const ids = () => fs.readFileSync(csv(s), 'utf8').trim().split('\n').map((l) => l.split(',')[0]);
