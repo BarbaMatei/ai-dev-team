@@ -4,12 +4,12 @@ import { classify, extractCitations } from '../scripts/lib/citations.mjs';
 
 test('classify recognises paths, symbols and commands', () => {
   for (const s of ['src/app/Order.cs', '.githooks', 'Order.cs:12']) assert.equal(classify(s), 'path', s);
-  for (const s of ['OrderService.ExecuteUpdate()', 'guestSession', 'STORAGE_KEY']) assert.equal(classify(s), 'symbol', s);
+  for (const s of ['OrderService.ExecuteUpdate()', 'cartItems', 'STORAGE_KEY']) assert.equal(classify(s), 'symbol', s);
   for (const s of ['npm run lint', 'dotnet test src/app']) assert.equal(classify(s), 'command', s);
 });
 
 test('classify skips placeholders, routes, globbed symbols and plain words', () => {
-  const skipped = ['appsettings.{Environment}.Local.json', '/api/orders/{id}', 'STORAGE_TEST_*', 'bug', '<Namespace.OrClass>', '$HOME/x', 'a/b...', 'https://x.io/a', '--flag'];
+  const skipped = ['appsettings.{Environment}.Local.json', '/api/orders/{id}', 'CACHE_TEST_*', 'bug', '<Module.OrClass>', '$HOME/x', 'a/b...', 'https://x.io/a', '--flag'];
   for (const s of skipped) assert.equal(classify(s), null, s);
 });
 
@@ -45,6 +45,6 @@ test('classify keeps dot-prefixed paths only when they look like paths', () => {
 });
 
 test('classify needs a lower-upper-lower run for a camel-case symbol', () => {
-  for (const s of ['guestSession', 'PostgresTestDatabase', 'IStorageRouter', 'OnPush']) assert.equal(classify(s), 'symbol', s);
+  for (const s of ['cartItems', 'TestDatabase', 'IFileStore', 'OnPush']) assert.equal(classify(s), 'symbol', s);
   for (const s of ['PostgreSQL', 'MinIO']) assert.equal(classify(s), null, s);
 });

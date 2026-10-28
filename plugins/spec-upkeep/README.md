@@ -15,7 +15,7 @@ Which docs: `CLAUDE.md`, `AGENTS.md`, `.claude/rules/**/*.md`, `memory-bank/stan
 ### What it checks
 
 - **Paths** (in inline code): has a `/`, starts with `.`, or ends in a known extension. It must exist on disk (from the project root or the doc's folder) or match a tracked file by its tail (`app/Order.cs` finds `src/app/Order.cs`). Globs need one match. `file:12` must not point past the file's last line.
-- **Symbols** (in inline code): `Service.Method()`, `guestSession`, `STORAGE_KEY`. Every part of 3 or more characters must appear as a whole word in tracked code (non-Markdown text files up to 1 MB).
+- **Symbols** (in inline code): `Service.Method()`, `cartItems`, `STORAGE_KEY`. Every part of 3 or more characters must appear as a whole word in tracked code (non-Markdown text files up to 1 MB).
 - **Commands**: lines starting with `dotnet`, `npm`, `npx`, `node`, `git`, `gh` and similar tools, in inline code or in shell code blocks. `npm test|start|run <x>` needs that script in a tracked `package.json`; path-like arguments must exist.
 - **Links**: Markdown link targets, relative to the doc's folder, then the project root. `%20` is decoded; `#anchors` and `?queries` are dropped.
 

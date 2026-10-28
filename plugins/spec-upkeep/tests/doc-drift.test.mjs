@@ -23,7 +23,7 @@ const clean = [
   '`src/app/Order.cs`', '`src/app/Order.cs:2`', '`app/Order.cs`', '`Order.cs`', '`src/app/*.cs`',
   '`OrderService.ExecuteUpdate()`', '`STORAGE_KEY`', '`npm test`', '`dotnet test src/app`',
   '[a](docs/a.md)', '[s](dir%20with%20space/b.md)', '[w](https://example.com)',
-  '`appsettings.{Environment}.Local.json`', '`/api/orders/{id}`', '`STORAGE_TEST_*`', '`bug`', '`<Namespace.OrClass>`',
+  '`appsettings.{Environment}.Local.json`', '`/api/orders/{id}`', '`CACHE_TEST_*`', '`bug`', '`<Module.OrClass>`',
 ];
 const claude = ['# Doc', ...clean, ...stale.map((s) => s[0]), '```sh', '$ npm run lint', '```', '```json', '{"x": "src/nope"}', '```'];
 
