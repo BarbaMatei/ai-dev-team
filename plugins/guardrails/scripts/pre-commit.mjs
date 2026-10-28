@@ -1,33 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { projectRoot, loadConfig, matchesAny } from './lib/project.mjs';
-import { findSecrets, isCommentLine, DEFAULT_COMMENT_EXTENSIONS } from './checks.mjs';
+import { findSecrets, isCommentLine, readSettings } from './checks.mjs';
 
 const root = projectRoot(process.cwd());
-function strings(value, key) {
-  if (value === undefined) return [];
-  if (!Array.isArray(value) || value.some((v) => typeof v !== 'string')) throw new Error(`.claude/ai-dev-team.json: ${key} must be an array of strings`);
-  return value;
-}
-
-function readSettings(cfg) {
-  const secrets = cfg.secrets ?? {};
-  const comments = cfg.comments ?? {};
-  if (typeof secrets !== 'object' || Array.isArray(secrets)) throw new Error('.claude/ai-dev-team.json: secrets must be an object');
-  if (typeof comments !== 'object' || Array.isArray(comments)) throw new Error('.claude/ai-dev-team.json: comments must be an object');
-  if (secrets.hint !== undefined && typeof secrets.hint !== 'string') throw new Error('.claude/ai-dev-team.json: secrets.hint must be a string');
-  const patterns = strings(secrets.patterns, 'secrets.patterns');
-  for (const p of patterns) {
-    try {
-      new RegExp(p);
-    } catch (e) {
-      throw new Error(`.claude/ai-dev-team.json: secrets.patterns: ${e.message}`);
-    }
-  }
-  const extensions = comments.extensions === undefined ? DEFAULT_COMMENT_EXTENSIONS : strings(comments.extensions, 'comments.extensions');
-  return { patterns, allowPaths: strings(secrets.allowPaths, 'secrets.allowPaths'), hint: secrets.hint, extensions: extensions.map((e) => e.toLowerCase()) };
-}
-
 let config;
 let settings;
 try {

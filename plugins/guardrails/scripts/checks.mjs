@@ -26,3 +26,27 @@ export function isCommentLine(line) {
   const t = line.trim();
   return t.startsWith('//') || t.startsWith('/*') || /\s\/\/(\s|$)/.test(line);
 }
+
+function strings(value, key) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((v) => typeof v !== 'string')) throw new Error(`.claude/ai-dev-team.json: ${key} must be an array of strings`);
+  return value;
+}
+
+export function readSettings(cfg) {
+  const secrets = cfg.secrets ?? {};
+  const comments = cfg.comments ?? {};
+  if (typeof secrets !== 'object' || Array.isArray(secrets)) throw new Error('.claude/ai-dev-team.json: secrets must be an object');
+  if (typeof comments !== 'object' || Array.isArray(comments)) throw new Error('.claude/ai-dev-team.json: comments must be an object');
+  if (secrets.hint !== undefined && typeof secrets.hint !== 'string') throw new Error('.claude/ai-dev-team.json: secrets.hint must be a string');
+  const patterns = strings(secrets.patterns, 'secrets.patterns');
+  for (const p of patterns) {
+    try {
+      new RegExp(p);
+    } catch (e) {
+      throw new Error(`.claude/ai-dev-team.json: secrets.patterns: ${e.message}`);
+    }
+  }
+  const extensions = comments.extensions === undefined ? DEFAULT_COMMENT_EXTENSIONS : strings(comments.extensions, 'comments.extensions');
+  return { patterns, allowPaths: strings(secrets.allowPaths, 'secrets.allowPaths'), hint: secrets.hint, extensions: extensions.map((e) => e.toLowerCase()) };
+}
