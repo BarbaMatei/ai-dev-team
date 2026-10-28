@@ -28,8 +28,8 @@ node scripts/pr-metrics.mjs --pr <n> | --sync | --hook [--dry-run] [--logs <dir>
 - `--pr <n>`: record that merged PR (exit 1 if it is not merged). A PR already in the file prints `PR #<n>: already recorded` and changes nothing.
 - `--sync`: record the merged PRs newer than the newest row (or `number >= metrics.since`), oldest first. No file and no `metrics.since`: exit 2.
 - `--dry-run`: print the header and rows, write nothing.
-- `--gh`: the command used for `gh` (run through the shell).
-- `--hook`: `--sync` that never blocks (below).
+- `--gh`: the command used for `gh`, split on spaces (double quotes group) and run without a shell.
+- `--hook [--hook-timeout <seconds>]`: `--sync` that never blocks (below); default 15 s.
 
 Config in `<project>/.claude/ai-dev-team.json`: `metrics.file` (default `metrics/bolts.csv`), `metrics.since` (first PR number to record when the file is new).
 
@@ -42,7 +42,7 @@ m=$(ls -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/ai-dev-team/metric
 [ -n "$m" ] && node "${m}scripts/pr-metrics.mjs" --hook
 ```
 
-`--hook` always exits 0 and prints at most one line on stderr. It does nothing on the default branch, in detached HEAD, when `--sync` would exit 2, or when `gh` fails or takes over 15 s. After adding rows it runs `git add` on the CSV so the commit carries them.
+`--hook` always exits 0 and prints at most one line on stderr. It does nothing on the default branch, in detached HEAD, when `--sync` would exit 2 (decided before any `gh` call), or when `gh` fails or one 15 s deadline for all `gh` calls runs out (the log scan is outside it). After adding rows it runs `git add` on the CSV so the commit carries them.
 
 Two open branches can both record the same merged PR; the second one sees `already recorded` after it rebases.
 

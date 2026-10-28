@@ -21,7 +21,12 @@ export function sumTokens(projectsDir, branch, untilIso) {
   const needle = `"gitBranch":${JSON.stringify(branch)}`;
   const seen = new Set();
   for (const file of jsonlFiles(projectsDir)) {
-    const text = fs.readFileSync(file, 'utf8');
+    let text;
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch {
+      continue;
+    }
     if (!text.includes(needle)) continue;
     let counted = false;
     for (const l of text.split('\n')) {

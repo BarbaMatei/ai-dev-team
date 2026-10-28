@@ -146,3 +146,76 @@ test('--hook never blocks when gh fails', () => {
   assert.equal(r.status, 0);
   assert.equal(fs.existsSync(csv(s)), false);
 });
+
+function slowGh(code) {
+  const f = path.join(base, `gh-${n++}.mjs`);
+  fs.writeFileSync(f, code);
+  return f;
+}
+
+test('--sync exits 2 before calling gh when there is nothing to start from', () => {
+  const s = setup();
+  const marker = path.join(base, 'marker-sync');
+  const gh = slowGh(`import fs from 'node:fs'; fs.writeFileSync(${JSON.stringify(marker)}, 'x'); process.exit(1);`);
+  const r = run({ ...s, gh: `node "${gh}"` }, ['--sync']);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /set metrics\.since/);
+  assert.equal(fs.existsSync(marker), false);
+});
+
+test('--hook with nothing to start from never calls gh', () => {
+  const s = setup({ branch: 'feat/y' });
+  const marker = path.join(base, 'marker-hook');
+  const gh = slowGh(`import fs from 'node:fs'; fs.writeFileSync(${JSON.stringify(marker)}, 'x'); setTimeout(() => {}, 10000);`);
+  const t = Date.now();
+  const r = run({ ...s, gh: `node "${gh}"` }, ['--hook']);
+  assert.equal(r.code, 0);
+  assert.ok(Date.now() - t < 5000);
+  assert.equal(fs.existsSync(marker), false);
+});
+
+test('--hook stops at its deadline and kills a hanging gh', () => {
+  const s = setup({ branch: 'feat/y', config: { metrics: { since: 7 } } });
+  const gh = slowGh('setTimeout(() => process.stdout.write("[]"), 10000);');
+  const t = Date.now();
+  const r = run({ ...s, gh: `node "${gh}"` }, ['--hook', '--hook-timeout', '1']);
+  assert.equal(r.code, 0);
+  assert.ok(Date.now() - t < 6000, `took ${Date.now() - t} ms`);
+  assert.equal(fs.existsSync(csv(s)), false);
+});
+
+test('--pr must be a number', () => {
+  const s = setup();
+  const r = run(s, ['--pr', '7; echo x']);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /--pr/);
+});
+
+test('appending to a CSV without a final newline starts a new line', () => {
+  const s = setup({ config: { metrics: { since: 7 } } });
+  fs.mkdirSync(path.dirname(csv(s)));
+  fs.writeFileSync(csv(s), `${HEADER}\n6,feat/z,a,2025-01-01T00:00:00Z,1.0,,,,,0,0,0,0,0,0`);
+  const r = run(s, ['--pr', '7']);
+  assert.equal(r.code, 0, r.err);
+  const lines = fs.readFileSync(csv(s), 'utf8').split('\n');
+  assert.equal(lines[2], ROW7);
+});
+
+test('invalid config exits 2 with one line', () => {
+  const s = setup();
+  fs.mkdirSync(path.join(s.dir, '.claude'));
+  fs.writeFileSync(path.join(s.dir, '.claude', 'ai-dev-team.json'), '{nope');
+  const r = run(s, ['--pr', '7']);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /^metrics: \.claude\/ai-dev-team\.json: /);
+});
+
+test('gh output that is not JSON exits 1 normally and stays silent in the hook', () => {
+  const s = setup({ branch: 'feat/y', config: { metrics: { since: 7 } } });
+  const gh = slowGh('process.stdout.write("oops");');
+  const bad = { ...s, gh: `node "${gh}"` };
+  assert.equal(run(bad, ['--pr', '7']).code, 1);
+  const h = run(bad, ['--hook']);
+  assert.equal(h.code, 0);
+  assert.equal(h.err, '');
+});
