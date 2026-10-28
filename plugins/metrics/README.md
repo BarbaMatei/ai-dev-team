@@ -42,7 +42,7 @@ m=$(ls -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/ai-dev-team/metric
 [ -n "$m" ] && node "${m}scripts/pr-metrics.mjs" --hook
 ```
 
-`--hook` always exits 0 and prints at most one line on stderr. It does nothing on the default branch, in detached HEAD, when `--sync` would exit 2 (decided before any `gh` call), or when `gh` fails or one 15 s deadline for all `gh` calls runs out (the log scan is outside it). After adding rows it runs `git add` on the CSV so the commit carries them.
+`--hook` always exits 0 and prints at most one line on stderr. It does nothing on the default branch, in detached HEAD, when `--sync` would exit 2 (decided before any `gh` call), or when `gh` fails or the `gh` calls of one run exceed 15 s (`--hook-timeout`; the log scan is not counted). It records at most one PR per commit, the oldest unrecorded one, and runs `git add` on the CSV so the commit carries it; later commits record the rest.
 
 Two open branches can both record the same merged PR; the second one sees `already recorded` after it rebases.
 

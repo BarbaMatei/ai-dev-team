@@ -62,16 +62,23 @@ function record(opts, out) {
   const rel = cfg.metrics?.file ?? 'metrics/bolts.csv';
   const file = path.join(root, rel);
   const rows = fs.existsSync(file) ? parseCsv(fs.readFileSync(file, 'utf8')) : [];
-  const deadline = opts.hook ? Date.now() + opts.hookTimeout * 1000 : undefined;
-  const ghJson = (args) => runGh(opts.gh, args, root, deadline && deadline - Date.now());
+  let ghLeft = opts.hook ? opts.hookTimeout * 1000 : undefined;
+  const ghJson = (args) => {
+    const t = Date.now();
+    try {
+      return runGh(opts.gh, args, root, ghLeft);
+    } finally {
+      if (ghLeft !== undefined) ghLeft -= Date.now() - t;
+    }
+  };
   let numbers;
   if (opts.pr) numbers = [opts.pr];
   else {
     if (!rows.length && cfg.metrics?.since === undefined) throw new Stop(2, NEEDS_SINCE);
     numbers = newPrs(ghJson(['pr', 'list', '--state', 'merged', '--json', 'number,mergedAt', '--limit', '100']), rows, cfg.metrics?.since);
   }
+  if (opts.hook) numbers = numbers.slice(0, 1);
   const added = [];
-  const lines = [];
   for (const n of numbers) {
     if (rows.some((r) => String(r.pr) === String(n))) {
       out(`PR #${n}: already recorded`);
@@ -81,20 +88,14 @@ function record(opts, out) {
     if (!pr.mergedAt || pr.state !== 'MERGED') throw new Stop(1, `PR #${n} is not merged`);
     const row = buildRow(pr, sumTokens(opts.logs, pr.headRefName, pr.mergedAt));
     added.push(row);
-    lines.push(`PR #${n}: ${row.hours_to_merge}h, ${row.review_rounds === '' ? '-' : row.review_rounds} round(s), ${row.tokens_total} tokens → ${rel}`);
-  }
-  if (opts.dry) {
-    if (added.length) out([COLUMNS.join(','), ...added.map(toCsvLine)].join('\n'));
-    return added;
-  }
-  if (added.length) {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (opts.dry) continue;
     const old = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-    const header = old === '' ? `${COLUMNS.join(',')}\n` : old.endsWith('\n') ? '' : '\n';
-    fs.appendFileSync(file, header + added.map((r) => `${toCsvLine(r)}\n`).join(''));
-    lines.forEach(out);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, (old === '' ? `${COLUMNS.join(',')}\n` : old.endsWith('\n') ? '' : '\n') + `${toCsvLine(row)}\n`);
     if (opts.hook) git(root, ['add', '--', rel]);
+    out(`PR #${n}: ${row.hours_to_merge}h, ${row.review_rounds === '' ? '-' : row.review_rounds} round(s), ${row.tokens_total} tokens → ${rel}`);
   }
+  if (opts.dry && added.length) out([COLUMNS.join(','), ...added.map(toCsvLine)].join('\n'));
   return added;
 }
 
@@ -105,12 +106,17 @@ function parseArgs(argv) {
     if (a === '--pr') {
       o.pr = argv[++i];
       if (!/^\d+$/.test(o.pr ?? '')) throw new Stop(2, 'metrics: --pr needs a PR number');
-    } else if (a === '--hook-timeout') o.hookTimeout = Number(argv[++i]);
-    else if (a === '--sync') o.sync = true;
+    } else if (a === '--hook-timeout') {
+      o.hookTimeout = Number(argv[++i]);
+      if (!(o.hookTimeout > 0)) throw new Stop(2, 'metrics: --hook-timeout needs a positive number of seconds');
+    } else if (a === '--sync') o.sync = true;
     else if (a === '--hook') o.hook = true;
     else if (a === '--dry-run') o.dry = true;
     else if (a === '--logs') o.logs = argv[++i];
-    else if (a === '--gh') o.gh = argv[++i];
+    else if (a === '--gh') {
+      o.gh = argv[++i];
+      if (!o.gh?.trim()) throw new Stop(2, 'metrics: --gh needs a command');
+    }
     else throw new Stop(2, `metrics: unknown argument ${a}`);
   }
   if (!o.pr && !o.sync && !o.hook) throw new Stop(2, 'metrics: usage: pr-metrics.mjs --pr <n> | --sync | --hook [--dry-run] [--logs <dir>] [--gh <command>] [--hook-timeout <seconds>]');
@@ -120,8 +126,8 @@ function parseArgs(argv) {
 function onDefaultOrDetached(root) {
   const head = git(root, ['symbolic-ref', '--short', 'HEAD']);
   if (!head) return true;
-  const def = git(root, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])?.replace(/^origin\//, '') ?? 'main';
-  return head === def;
+  const remote = git(root, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])?.replace(/^origin\//, '');
+  return (remote ? [remote] : [git(root, ['config', 'init.defaultBranch']), 'main', 'master']).includes(head);
 }
 
 function main() {
@@ -140,7 +146,7 @@ function main() {
   } catch (e) {
     if (!(e instanceof Stop)) throw e;
     process.stderr.write(`${e.message}\n`);
-    process.exitCode = e.code;
+    process.exitCode = process.argv.includes('--hook') ? 0 : e.code;
   }
 }
 

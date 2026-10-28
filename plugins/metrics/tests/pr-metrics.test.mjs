@@ -25,7 +25,8 @@ function git(cwd, args) {
 const BODY = 'Summary\nRounds: 2 · proven: 3 · discarded: 4 · unverified: 1\n';
 const PR7 = { number: 7, headRefName: 'feat/y', mergedAt: '2026-01-01T12:30:00Z', state: 'MERGED', body: BODY, commits: [{ authoredDate: '2026-01-01T10:00:00Z' }, { authoredDate: '2026-01-01T09:00:00Z' }] };
 
-const FAKE_GH = (data) => `import fs from 'node:fs';
+const FAKE_GH = (data, delay = 0) => `import fs from 'node:fs';
+if (${delay}) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${delay});
 const d = JSON.parse(fs.readFileSync(${JSON.stringify(data)}, 'utf8'));
 const a = process.argv.slice(2);
 if (a[0] === 'pr' && a[1] === 'view') {
@@ -36,21 +37,22 @@ if (a[0] === 'pr' && a[1] === 'view') {
 else process.exit(1);
 `;
 
-function setup({ branch = 'main', config, prs = { 7: PR7 } } = {}) {
+function setup({ branch = 'main', init = 'main', config, prs = { 7: PR7 }, list, delay = 0, gitConfig } = {}) {
   const id = n++;
   const dir = path.join(base, `w${id}`);
   fs.mkdirSync(dir);
-  git(dir, ['init', '-q', '-b', 'main']);
+  git(dir, ['init', '-q', '-b', init]);
+  if (gitConfig) git(dir, ['config', ...gitConfig]);
   if (config) {
     fs.mkdirSync(path.join(dir, '.claude'));
     fs.writeFileSync(path.join(dir, '.claude', 'ai-dev-team.json'), JSON.stringify(config));
   }
   git(dir, ['commit', '-q', '-m', 'init', '--allow-empty']);
-  if (branch !== 'main') git(dir, ['checkout', '-q', '-b', branch]);
+  if (branch !== init && branch !== 'main') git(dir, ['checkout', '-q', '-b', branch]);
   const data = path.join(base, `data${id}.json`);
-  fs.writeFileSync(data, JSON.stringify({ view: prs, list: Object.values(prs).map((p) => ({ number: p.number, mergedAt: p.mergedAt })) }));
+  fs.writeFileSync(data, JSON.stringify({ view: prs, list: list ?? Object.values(prs).map((p) => ({ number: p.number, mergedAt: p.mergedAt })) }));
   const gh = path.join(base, `fake-gh${id}.mjs`);
-  fs.writeFileSync(gh, FAKE_GH(data));
+  fs.writeFileSync(gh, FAKE_GH(data, delay));
   const logs = path.join(base, `logs${id}`);
   fs.mkdirSync(logs);
   const l = (mid, ts) => JSON.stringify({ type: 'assistant', timestamp: ts, gitBranch: 'feat/y', message: { id: mid, usage: { input_tokens: 10, cache_creation_input_tokens: 5, cache_read_input_tokens: 100, output_tokens: 7 } } });
@@ -218,4 +220,51 @@ test('gh output that is not JSON exits 1 normally and stays silent in the hook',
   const h = run(bad, ['--hook']);
   assert.equal(h.code, 0);
   assert.equal(h.err, '');
+});
+
+test('--hook records one PR per commit, counts only gh time and stages each row', () => {
+  const mk = (num, day) => ({ ...PR7, number: num, mergedAt: `2026-01-0${day}T12:30:00Z`, body: 'x' });
+  const s = setup({ branch: 'feat/y', config: { metrics: { since: 1 } }, delay: 300, prs: { 1: mk(1, 1), 2: mk(2, 2), 3: mk(3, 3) } });
+  const r = run(s, ['--hook', '--hook-timeout', '1']);
+  assert.equal(r.code, 0, r.err);
+  const ids = () => fs.readFileSync(csv(s), 'utf8').trim().split('\n').map((l) => l.split(',')[0]);
+  assert.deepEqual(ids(), ['pr', '1']);
+  assert.equal(git(s.dir, ['diff', '--cached', '--name-only']).trim(), 'metrics/bolts.csv');
+  git(s.dir, ['commit', '-q', '-m', 'c']);
+  run(s, ['--hook', '--hook-timeout', '1']);
+  assert.deepEqual(ids(), ['pr', '1', '2']);
+});
+
+test('--sync keeps the rows built before a later PR fails', () => {
+  const s = setup({ config: { metrics: { since: 1 } }, prs: { 1: { ...PR7, number: 1 } }, list: [{ number: 1, mergedAt: '2026-01-01T12:30:00Z' }, { number: 2, mergedAt: '2026-01-02T00:00:00Z' }] });
+  const r = run(s, ['--sync']);
+  assert.equal(r.code, 1);
+  assert.equal(fs.readFileSync(csv(s), 'utf8'), `${HEADER}
+${ROW7.replace('7,', '1,')}
+`);
+});
+
+test('--hook writes nothing on master or the configured default branch without a remote', () => {
+  const m = setup({ init: 'master', config: { metrics: { since: 7 } } });
+  assert.equal(run(m, ['--hook']).code, 0);
+  assert.equal(fs.existsSync(csv(m)), false);
+  const t = setup({ init: 'trunk', gitConfig: ['init.defaultBranch', 'trunk'], config: { metrics: { since: 7 } } });
+  assert.equal(run(t, ['--hook']).code, 0);
+  assert.equal(fs.existsSync(csv(t)), false);
+});
+
+test('bad --hook-timeout or empty --gh: one line, exit 2, exit 0 in the hook', () => {
+  const s = setup({ branch: 'feat/y', config: { metrics: { since: 7 } } });
+  const go = (args) => {
+    const r = spawnSync(process.execPath, [script, ...args], { cwd: s.dir, env: env(), encoding: 'utf8' });
+    return { code: r.status, err: r.stderr };
+  };
+  for (const bad of [['--hook-timeout', 'abc'], ['--hook-timeout', '0'], ['--hook-timeout', '-3'], ['--gh', '']]) {
+    const a = go(['--sync', ...bad]);
+    assert.equal(a.code, 2, bad.join(' '));
+    assert.equal(a.err.trim().split('\n').length, 1);
+    const h = go(['--hook', ...bad]);
+    assert.equal(h.code, 0, bad.join(' '));
+    assert.equal(h.err.trim().split('\n').length, 1);
+  }
 });
