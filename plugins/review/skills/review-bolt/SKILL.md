@@ -12,6 +12,7 @@ You review one finished branch and write the owner's PR body. At most two review
 - **Args:** `<base>` = `--base <ref>`, else `git merge-base HEAD origin/HEAD`, else `main`. `--no-pr`: write the PR body file only; push nothing, create no PR, file no issues (list them in the body instead).
 - **Default branch:** `git symbolic-ref --short refs/remotes/origin/HEAD` without the `origin/` prefix; if that fails, `main`.
 - **Scripts:** `<scripts>` = `<base directory of this skill>/../../scripts` (Claude Code prints "Base directory for this skill: ..." when this skill loads). Run them from the project root.
+- **Temp files:** `<tmp>` = the session's scratchpad directory if Claude Code lists one, else the OS temp folder (`node -e "console.log(require('os').tmpdir())"`); never inside `.git` or the working tree. PR body file = `<tmp>/review-bolt-pr-<branch with / replaced by ->.md`.
 - **Config:** `<project>/.claude/ai-dev-team.json`: `tests` (each `<kind>` has a `command` with `{filter}` and an optional `cwd`), `bugs.label` (default `bug`).
 - **Built-ins:** invoke `simplify` and `code-review` with the Skill tool by those plain names: the built-in `code-review`, never a plugin's `code-review:code-review`. `security-review` runs only inside a subagent (step 7): it takes over the context it runs in.
 - **Keep for the PR body:** the round count; every PROVEN, UNVERIFIED and `discarded:` line (sum the counts over rounds); per fix its `file:line`, "now" and pre-fix text, `<kind>`, `<filter>`, mutate-check verdict; every "Needs owner" item.
@@ -54,7 +55,7 @@ Test: run only it: <command> in <dir>, with {filter} replaced by <filter>. It fa
 
 11. Per round-1 PROVEN line: `node "<scripts>/areas.mjs" nearby --pattern "<regex>" --base <base>`. Skip the lines already fixed.
 12. `in bolt area` lines → one fresh fixer (same Agent settings) per pattern: "Same bug shape as <claim>, fixed at <file:line>. Check these sites: <lines>. Where the bug exists, first add a failing test beside the existing tests (run it with <command> in <dir>), then the smallest fix; do not commit. Reply one line per site: `FIXED <file:line> — now: <text> — pre-fix: <text> — test <kind> <filter>` or `NOT A BUG <file:line> — <why>`."
-13. `elsewhere` lines → "Same bug elsewhere". Unless `--no-pr`, per pattern: `gh issue list --search "<basename> in:body" --state open` per file; an open issue on the same bug → link it instead; file the rest as one issue: body (sites, claim, pattern, this branch) written to the path `git rev-parse --git-path review-bolt-issue.md` prints, then `gh issue create --title "<claim>" --label <bugs.label> --body-file <that path>`. `gh` missing or failing (for example the label does not exist) → mark those sites "to file" in the body, as with `--no-pr`.
+13. `elsewhere` lines → "Same bug elsewhere". Unless `--no-pr`, per pattern: `gh issue list --search "<basename> in:body" --state open` per file; an open issue on the same bug → link it instead; file the rest as one issue: body (sites, claim, pattern, this branch) written to `<tmp>/review-bolt-issue-<branch with / replaced by ->.md`, then `gh issue create --title "<claim>" --label <bugs.label> --body-file <that path>`. `gh` missing or failing (for example the label does not exist) → mark those sites "to file" in the body, as with `--no-pr`.
 
 ## Round 2 — only if steps 9-12 changed code
 
@@ -71,9 +72,9 @@ Test: run only it: <command> in <dir>, with {filter} replaced by <filter>. It fa
 
 ## PR body
 
-21. Read `<base directory of this skill>/pr-body.md`, replace every `<...>` as its placeholders say, and write it to the path `git rev-parse --git-path review-bolt-pr.md` prints (inside `.git`, never committed). Each UNVERIFIED line goes under "Needs owner" with its repro.
-22. Unless `--no-pr`: `git push -u origin HEAD`; `gh pr view` finds a PR → `gh pr edit --body-file <file>`, else `gh pr create --base <base if it is a branch name; if it is a commit SHA, the default branch> --title "<one-line conventional subject>" --body-file <file>`. Never merge; never push the default branch.
+21. Read `<base directory of this skill>/pr-body.md`, replace every `<...>` as its placeholders say, and write it to the PR body file (see Temp files; never committed). Each UNVERIFIED line goes under "Needs owner" with its repro.
+22. Unless `--no-pr`: `git push -u origin HEAD`; `gh pr view` finds a PR → `gh pr edit --body-file <PR body file>`, else `gh pr create --base <base if it is a branch name; if it is a commit SHA, the default branch> --title "<one-line conventional subject>" --body-file <PR body file>`. Never merge; never push the default branch.
 
 ## Reply
 
-At most 10 lines: the PR link (with `--no-pr`, the body file path), the `Rounds:` line, fixes with their mutate-check verdicts, issues filed, and the "Needs owner" count with its first item.
+At most 10 lines: the PR link (if any) and the PR body file's full path, the `Rounds:` line, fixes with their mutate-check verdicts, issues filed, and the "Needs owner" count with its first item.

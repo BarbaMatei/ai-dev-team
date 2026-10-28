@@ -9,6 +9,7 @@ You hunt bugs in one area of the default branch and file what survives proving a
 
 - **Arg:** `<area>`, an area name (a rule file's basename or a key of the config's `areas`).
 - **Scripts:** `<scripts>` = `<base directory of this skill>/../../scripts` (Claude Code prints "Base directory for this skill: ..." when this skill loads). Run them from the project root.
+- **Temp files:** `<tmp>` = the session's scratchpad directory if Claude Code lists one, else the OS temp folder (`node -e "console.log(require('os').tmpdir())"`); never inside `.git` or the working tree.
 - **Config:** `<project>/.claude/ai-dev-team.json`: `tests` (used by `prove-findings`), `rulesDir` (default `.claude/rules`), `bugs.label` (default `bug`).
 - **Built-in:** invoke `code-review` with the Skill tool by that plain name: the built-in `code-review`, never a plugin's `code-review:code-review`.
 
@@ -27,9 +28,9 @@ You hunt bugs in one area of the default branch and file what survives proving a
 8. Invoke `review:prove-findings` with args `base HEAD; area sweep of the default branch, no diff`.
 9. For each PROVEN and UNVERIFIED line:
    1. `gh issue list --search "<basename> in:body" --state open`. An open issue about the same bug → note its number and skip.
-   2. Write the issue body to the path `git rev-parse --git-path sweep-issue.md` prints: `file:line`, the claim, the repro (PROVEN: the test command with its filter; UNVERIFIED: its steps), the proving test as a fenced code block (PROVEN only), the pattern, and the swept commit (`git rev-parse --short HEAD`).
+   2. Write the issue body to `<tmp>/sweep-<area>-issue.md`: `file:line`, the claim, the repro (PROVEN: the test command with its filter; UNVERIFIED: its steps), the proving test as a fenced code block (PROVEN only), the pattern, and the swept commit (`git rev-parse --short HEAD`).
    3. `gh issue create --title "<claim, under 70 characters>" --label <bugs.label> --body-file <that path>`.
-10. `gh` missing or failing (for example the label does not exist) → append each would-be issue body to the path `git rev-parse --git-path sweep-<area>-issues.md` prints and name that file in the reply.
+10. `gh` missing or failing (for example the label does not exist) → append each would-be issue body to `<tmp>/sweep-<area>-issues.md` and name that file's full path in the reply.
 11. Remove every proving test: restore the files the provers edited and delete the files they added, until `git status --porcelain` is empty again.
 
 ## Reply

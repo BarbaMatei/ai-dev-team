@@ -34,7 +34,7 @@ An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:`
 4. Round 2, only if round 1 changed code: `code-review medium` on the fix lines → prove → fix. No round 3: the rest goes under "Needs owner".
 5. `mutate-check` each regression test, attach past decisions, write the PR body; the owner reviews and merges.
 
-The PR body is written to `git rev-parse --git-path review-bolt-pr.md` (inside `.git`, never committed). `--no-pr` stops there.
+The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchpad (else the OS temp folder), never inside `.git` or the working tree: Claude Code asks permission for files in `.git`, which stalls a headless run. `--no-pr` stops there.
 
 ## Scripts
 
