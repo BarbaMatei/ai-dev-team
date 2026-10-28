@@ -9,7 +9,7 @@ You judge whether each new test can catch a bug. A test is decorative when it st
 
 ## Read
 
-Only the file you were given. Never production code, other tests or git history: judge each test by its own lines and its file's setup.
+Only the file you were given. Never production code, other tests or git history: judge each test by its own lines and its file's setup. If the file is longer than one read returns, keep reading it in chunks (Read with offset and limit) to its last line, so `checked:` never undercounts.
 
 The file has two kinds of blocks:
 
