@@ -10,7 +10,7 @@
     {
       "name": "review",
       "source": "./plugins/review",
-      "description": "Deterministic helpers for code review: touched areas, nearby pattern search and past-decision lookup."
+      "description": "Proven code review: review-bolt and sweep-area run the review, prove-findings keeps only findings a failing test proves, mutate-check shows a regression test guards its line, and design-critic attacks risky designs before coding."
     }
   ]
 }

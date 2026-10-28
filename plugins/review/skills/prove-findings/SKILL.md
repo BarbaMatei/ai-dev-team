@@ -27,7 +27,7 @@ A review finding survives only when a fresh subagent's test fails for the claime
 
 1. One fresh Agent per kept finding: `subagent_type: general-purpose`, `model: sonnet` (`haiku` when the claim names one function and one input). Never the session or subagent that wrote the code.
 2. Dispatch them one at a time: they share the working tree and the build.
-3. Pick the `<kind>` whose tests cover the finding's file: `<command>` = its `command` as written, `<dir>` = project root + its `cwd`. No `tests` configured: `<command>` = "the project's test tool, filtered to this one test, never the whole suite".
+3. Pick the `<kind>` whose tests cover the finding's file: `<command>` = its `command` as written, `<dir>` = project root + its `cwd`. No `tests` configured: `<kind>` = `-`, `<command>` = "the project's test tool, filtered to this one test, never the whole suite".
 4. Prompt (fill every `<...>` you know; the prover sees only its own finding):
 
 ```
@@ -35,9 +35,9 @@ Prove or disprove one review finding. Change no production code.
 Claim: <claim>
 Where: <file:line>
 1. Find the existing tests for this code. Beside them, in their style, add the smallest test that fails if the claim is true. Mock only at system boundaries, never the code the claim is about.
-2. Run only that test: <command> with {filter} replaced by its name, in <dir>.
+2. Run only that test: <command> in <dir>, with {filter} replaced by a filter that matches only your test.
 3. Reply with exactly one of:
-   PROVEN — test <filter> in <test file> — <the failing assertion line, with expected and actual>
+   PROVEN — test <kind> <the exact text you put in place of {filter}> in <test file> — <the failing assertion line, with expected and actual>
    DISPROVEN — <one line why> (delete your test first)
    UNTESTABLE — <numbered exact manual repro steps> (delete your test first)
 4. After PROVEN, one last line: pattern <one-line JavaScript regex matching a source line with this bug's shape>
@@ -56,12 +56,12 @@ Where: <file:line>
 Only these lines, at most 10: PROVEN lines (most severe first), then UNVERIFIED lines (at most 3), then the `discarded:` line. Never drop a PROVEN line to fit.
 
 ```
-PROVEN <file:line> — <claim> — test <name> — pattern <regex>
+PROVEN <file:line> — <claim> — test <kind> <filter> — pattern <regex>
 UNVERIFIED <file:line> — <claim> — repro: <steps>
 discarded: <n> (<n> style/doc/consider, <n> missing-test, <n> disproven)
 ```
 
-`<name>` is the filter that runs only that test; `<regex>` is the prover's pattern; repro steps stay on one line. Always print the `discarded:` line, even when every count is 0.
+`<kind>` is the `tests` key used and `<filter>` exactly what replaced `{filter}`, so `mutate-check.mjs --kind <kind> --test <filter>` reuses them verbatim; `<regex>` is the prover's pattern; repro steps stay on one line. Always print the `discarded:` line, even when every count is 0.
 
 ## Lessons
 
