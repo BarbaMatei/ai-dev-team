@@ -1,10 +1,10 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseOutput, acquireLock } from '../scripts/scoped-test.mjs';
 
 const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'scoped-test.mjs');
@@ -165,4 +165,38 @@ test('lock: release leaves a file owned by someone else', async () => {
   fs.writeFileSync(file, String(process.pid + 1));
   rel();
   assert.equal(fs.existsSync(file), true);
+});
+
+test('lock: parallel acquirers never remove a live holder', async () => {
+  const file = path.join(base, 'e.lock');
+  fs.writeFileSync(file, String(process.pid));
+  let resolved = 0;
+  const attempts = [1, 2].map(() => acquireLock(file, { pollMs: 10, timeoutMs: 300 }).then(() => resolved++, () => {}));
+  await Promise.all(attempts);
+  assert.equal(resolved, 0);
+  assert.equal(fs.readFileSync(file, 'utf8'), String(process.pid));
+  fs.unlinkSync(file);
+});
+
+test('lock: concurrent processes never hold it at the same time', async () => {
+  const file = path.join(base, 'f.lock');
+  const log = path.join(base, 'f.log');
+  const child = path.join(base, 'child.mjs');
+  const mod = pathToFileURL(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'scoped-test.mjs')).href;
+  fs.writeFileSync(child, `import fs from 'node:fs';
+import { acquireLock } from ${JSON.stringify(mod)};
+const release = await acquireLock(${JSON.stringify(file)}, { pollMs: 5, timeoutMs: 60000 });
+fs.appendFileSync(${JSON.stringify(log)}, 'start,');
+await new Promise((r) => setTimeout(r, 40));
+fs.appendFileSync(${JSON.stringify(log)}, 'end,');
+release();
+`);
+  const env = { ...process.env };
+  const exits = await Promise.all(
+    Array.from({ length: 8 }, () => new Promise((res) => spawn(process.execPath, [child], { env, stdio: ['ignore', 'ignore', 'inherit'] }).on('close', res))),
+  );
+  assert.deepEqual(exits, Array(8).fill(0));
+  const marks = fs.readFileSync(log, 'utf8').split(',').filter(Boolean);
+  assert.equal(marks.length, 16);
+  marks.forEach((m, i) => assert.equal(m, i % 2 === 0 ? 'start' : 'end'));
 });

@@ -47,36 +47,70 @@ function alive(pid) {
   }
 }
 
+function tryLink(file) {
+  const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
+  fs.writeFileSync(tmp, String(process.pid));
+  try {
+    fs.linkSync(tmp, file);
+    return true;
+  } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+    return false;
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+function readHolder(file) {
+  try {
+    return { pid: Number.parseInt(fs.readFileSync(file, 'utf8'), 10), mtime: fs.statSync(file).mtimeMs };
+  } catch {
+    return null;
+  }
+}
+
+function takeOver(file, stalePid) {
+  const moved = `${file}.${process.pid}.stale`;
+  try {
+    fs.renameSync(file, moved);
+  } catch {
+    return;
+  }
+  const now = readHolder(moved);
+  fs.rmSync(moved, { force: true });
+  if (now && now.pid !== stalePid && Number.isInteger(now.pid) && alive(now.pid)) {
+    try {
+      fs.writeFileSync(`${moved}.new`, String(now.pid));
+      fs.linkSync(`${moved}.new`, file);
+    } catch {}
+    fs.rmSync(`${moved}.new`, { force: true });
+  }
+}
+
 export async function acquireLock(file, { pollMs = 2000, timeoutMs = 30 * 60 * 1000, onWait } = {}) {
   const deadline = Date.now() + timeoutMs;
   let announced = false;
   for (;;) {
-    try {
-      fs.writeFileSync(file, String(process.pid), { flag: 'wx' });
+    if (tryLink(file)) {
       return () => {
         try {
           if (fs.readFileSync(file, 'utf8').trim() === String(process.pid)) fs.unlinkSync(file);
         } catch {}
       };
-    } catch (e) {
-      if (e.code !== 'EEXIST') throw e;
     }
-    let holder = NaN;
-    try {
-      holder = Number.parseInt(fs.readFileSync(file, 'utf8'), 10);
-    } catch {
+    const h = readHolder(file);
+    if (h && Number.isInteger(h.pid) && h.pid > 0 && !alive(h.pid)) {
+      takeOver(file, h.pid);
       continue;
     }
-    if (!Number.isInteger(holder) || holder <= 0 || !alive(holder)) {
-      try {
-        fs.unlinkSync(file);
-      } catch {}
+    if (h && !(h.pid > 0) && Date.now() - h.mtime > 10000) {
+      takeOver(file, h.pid);
       continue;
     }
     if (Date.now() >= deadline) throw new Error('timed out waiting for the test lock');
-    if (!announced) {
+    if (!announced && h) {
       announced = true;
-      onWait?.(holder);
+      onWait?.(h.pid);
     }
     await sleep(pollMs);
   }
