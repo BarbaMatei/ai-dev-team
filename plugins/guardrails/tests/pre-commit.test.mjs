@@ -170,3 +170,53 @@ test('only added lines are checked, with new-file numbers', () => {
   assert.equal(r.code, 1);
   assert.ok(r.out.includes('a.cs:3: int c; // late'));
 });
+
+test('a configured diff.external does not hide a staged secret', () => {
+  const d = repo();
+  git(d, ['config', 'diff.external', 'echo harmless']);
+  put(d, 'a.cs', `var k = "${sk}";\n`);
+  const r = run(d);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /\[blocked\] potential secret: a\.cs:1/);
+});
+
+test('file names with pathspec magic characters are still checked', () => {
+  const d = repo();
+  put(d, '[ab].cs', `var k = "${sk}";\n`);
+  put(d, 'other.cs', 'int x;\n');
+  const r = run(d);
+  assert.equal(r.code, 1);
+  assert.ok(r.out.includes('[ab].cs:1'));
+});
+
+test('a pure rename does not list the existing comments', () => {
+  const d = repo();
+  put(d, 'a.cs', 'int a;\n// old note\nint b;\nint c;\n');
+  git(d, ['commit', '-q', '-m', 'base']);
+  git(d, ['mv', 'a.cs', 'b.cs']);
+  const r = run(d);
+  assert.equal(r.code, 0, r.out);
+});
+
+test('a rename with one added comment lists only that line', () => {
+  const d = repo();
+  put(d, 'a.cs', 'int a;\n// old note\nint b;\nint c;\n');
+  git(d, ['commit', '-q', '-m', 'base']);
+  git(d, ['mv', 'a.cs', 'b.cs']);
+  put(d, 'b.cs', 'int a;\n// old note\nint b;\nint c;\nint d; // fresh\n');
+  const r = run(d);
+  assert.equal(r.code, 1);
+  assert.ok(r.out.includes('b.cs:5: int d; // fresh'));
+  assert.ok(!r.out.includes('old note'));
+});
+
+test('a merge in progress skips the comment gate but not the secret check', () => {
+  const d = repo();
+  put(d, 'a.cs', 'int a;\n');
+  git(d, ['commit', '-q', '-m', 'base']);
+  fs.writeFileSync(path.join(d, '.git', 'MERGE_HEAD'), 'a'.repeat(40) + '\n');
+  put(d, 'b.cs', 'int x; // from other branch\n');
+  assert.equal(run(d).code, 0);
+  put(d, 'c.txt', `key ${sk}\n`);
+  assert.equal(run(d).code, 1);
+});
