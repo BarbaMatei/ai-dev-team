@@ -32,7 +32,7 @@ Rounds: <1|2> · proven: <n> · discarded: <n> · unverified: <n>
 
 ## CI parity
 
-<CI checks run locally on this branch with their results, or "Not run.">
+<only CI checks that already ran on this branch, with their results; none → "Not run." Never run anything to fill this section.>
 
 ## Screenshots
 

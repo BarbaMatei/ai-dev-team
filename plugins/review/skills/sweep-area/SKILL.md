@@ -29,7 +29,7 @@ You hunt bugs in one area of the default branch and file what survives proving a
    1. `gh issue list --search "<basename> in:body" --state open`. An open issue about the same bug → note its number and skip.
    2. Write the issue body to the path `git rev-parse --git-path sweep-issue.md` prints: `file:line`, the claim, the repro (PROVEN: the test command with its filter; UNVERIFIED: its steps), the proving test as a fenced code block (PROVEN only), the pattern, and the swept commit (`git rev-parse --short HEAD`).
    3. `gh issue create --title "<claim, under 70 characters>" --label <bugs.label> --body-file <that path>`.
-10. `gh` missing or failing → append each would-be issue body to the path `git rev-parse --git-path sweep-<area>-issues.md` prints and name that file in the reply.
+10. `gh` missing or failing (for example the label does not exist) → append each would-be issue body to the path `git rev-parse --git-path sweep-<area>-issues.md` prints and name that file in the reply.
 11. Remove every proving test: restore the files the provers edited and delete the files they added, until `git status --porcelain` is empty again.
 
 ## Reply
