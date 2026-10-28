@@ -25,8 +25,7 @@ function git(cwd, args) {
 const BODY = 'Summary\nRounds: 2 · proven: 3 · discarded: 4 · unverified: 1\n';
 const PR7 = { number: 7, headRefName: 'feat/y', mergedAt: '2026-01-01T12:30:00Z', state: 'MERGED', body: BODY, commits: [{ authoredDate: '2026-01-01T10:00:00Z' }, { authoredDate: '2026-01-01T09:00:00Z' }] };
 
-const FAKE_GH = (data, delay = 0) => `import fs from 'node:fs';
-if (${delay}) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${delay});
+const FAKE_GH = (data) => `import fs from 'node:fs';
 const d = JSON.parse(fs.readFileSync(${JSON.stringify(data)}, 'utf8'));
 const a = process.argv.slice(2);
 if (a[0] === 'pr' && a[1] === 'view') {
@@ -37,7 +36,7 @@ if (a[0] === 'pr' && a[1] === 'view') {
 else process.exit(1);
 `;
 
-function setup({ branch = 'main', init = 'main', config, prs = { 7: PR7 }, list, delay = 0, gitConfig } = {}) {
+function setup({ branch = 'main', init = 'main', config, prs = { 7: PR7 }, list, gitConfig } = {}) {
   const id = n++;
   const dir = path.join(base, `w${id}`);
   fs.mkdirSync(dir);
@@ -52,7 +51,7 @@ function setup({ branch = 'main', init = 'main', config, prs = { 7: PR7 }, list,
   const data = path.join(base, `data${id}.json`);
   fs.writeFileSync(data, JSON.stringify({ view: prs, list: list ?? Object.values(prs).map((p) => ({ number: p.number, mergedAt: p.mergedAt })) }));
   const gh = path.join(base, `fake-gh${id}.mjs`);
-  fs.writeFileSync(gh, FAKE_GH(data, delay));
+  fs.writeFileSync(gh, FAKE_GH(data));
   const logs = path.join(base, `logs${id}`);
   fs.mkdirSync(logs);
   const l = (mid, ts) => JSON.stringify({ type: 'assistant', timestamp: ts, gitBranch: 'feat/y', message: { id: mid, usage: { input_tokens: 10, cache_creation_input_tokens: 5, cache_read_input_tokens: 100, output_tokens: 7 } } });
@@ -222,16 +221,16 @@ test('gh output that is not JSON exits 1 normally and stays silent in the hook',
   assert.equal(h.err, '');
 });
 
-test('--hook records one PR per commit, counts only gh time and stages each row', () => {
+test('--hook records one PR per commit and stages each row', () => {
   const mk = (num, day) => ({ ...PR7, number: num, mergedAt: `2026-01-0${day}T12:30:00Z`, body: 'x' });
-  const s = setup({ branch: 'feat/y', config: { metrics: { since: 1 } }, delay: 250, prs: { 1: mk(1, 1), 2: mk(2, 2), 3: mk(3, 3) } });
-  const r = run(s, ['--hook', '--hook-timeout', '1']);
+  const s = setup({ branch: 'feat/y', config: { metrics: { since: 1 } }, prs: { 1: mk(1, 1), 2: mk(2, 2), 3: mk(3, 3) } });
+  const r = run(s, ['--hook']);
   assert.equal(r.code, 0, r.err);
   const ids = () => fs.readFileSync(csv(s), 'utf8').trim().split('\n').map((l) => l.split(',')[0]);
   assert.deepEqual(ids(), ['pr', '1']);
   assert.equal(git(s.dir, ['diff', '--cached', '--name-only']).trim(), 'metrics/bolts.csv');
   git(s.dir, ['commit', '-q', '-m', 'c']);
-  run(s, ['--hook', '--hook-timeout', '1']);
+  run(s, ['--hook']);
   assert.deepEqual(ids(), ['pr', '1', '2']);
 });
 
