@@ -26,7 +26,7 @@ export function loadConfig(root) {
   }
 }
 
-export function globToRegExp(glob) {
+function globSource(glob) {
   let re = '';
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
@@ -39,9 +39,43 @@ export function globToRegExp(glob) {
         } else re += '.*';
       } else re += '[^/]*';
     } else if (c === '?') re += '[^/]';
-    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    else if (c === '{' && closingBrace(glob, i) > 0) {
+      const end = closingBrace(glob, i);
+      re += `(?:${splitTop(glob.slice(i + 1, end)).map(globSource).join('|')})`;
+      i = end;
+    } else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   }
-  return new RegExp(`^${re}$`);
+  return re;
+}
+
+function closingBrace(glob, open) {
+  let depth = 0;
+  for (let i = open; i < glob.length; i++) {
+    if (glob[i] === '{') depth++;
+    else if (glob[i] === '}' && --depth === 0) return i;
+  }
+  return -1;
+}
+
+export function splitTop(body) {
+  const parts = [];
+  let depth = 0;
+  let cur = '';
+  for (const c of body) {
+    if (c === ',' && depth === 0) {
+      parts.push(cur);
+      cur = '';
+      continue;
+    }
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
+    cur += c;
+  }
+  return [...parts, cur];
+}
+
+export function globToRegExp(glob) {
+  return new RegExp(`^${globSource(glob)}$`);
 }
 
 export function matchesAny(relPath, globs) {

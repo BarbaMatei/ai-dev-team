@@ -150,3 +150,25 @@ test('missing subcommand prints usage and exits 2', () => {
   assert.equal(run(dir).code, 2);
   assert.equal(run(dir, 'bogus').code, 2);
 });
+
+test('rule paths accept brace expansion, inline lists and comma-separated strings', () => {
+  const forms = {
+    block: '---\npaths:\n  - "src/**/*.{ts,tsx}"\n  - lib/*.js\n---\n',
+    inline: '---\npaths: ["src/**/*.{ts,tsx}", \'lib/*.js\']\n---\n',
+    quoted: '---\npaths: "src/**/*.{ts,tsx}, lib/*.js"\n---\n',
+    bare: '---\npaths: src/**/*.{ts,tsx}, lib/*.js\n---\n',
+  };
+  for (const [name, fm] of Object.entries(forms)) {
+    const dir = repo({ '.claude/rules/x.md': fm, 'src/a/b.tsx': 'x\n', 'lib/c.js': 'x\n', 'lib/d.ts': 'x\n' });
+    const [x] = loadAreas(dir, {});
+    assert.deepEqual(x.globs, ['src/**/*.{ts,tsx}', 'lib/*.js'], name);
+    assert.deepEqual(run(dir, 'files', 'x').out.trim().split('\n'), ['lib/c.js', 'src/a/b.tsx'], name);
+  }
+});
+
+test('a rule file with paths but no parsable globs warns once on stderr', () => {
+  const dir = repo({ '.claude/rules/odd.md': '---\npaths:\n---\n', '.claude/rules/ok.md': '---\npaths: a/**\n---\n' });
+  const r = run(dir, 'touched');
+  assert.equal(r.code, 0);
+  assert.equal(r.err, 'review: .claude/rules/odd.md: paths present but no globs parsed\n');
+});

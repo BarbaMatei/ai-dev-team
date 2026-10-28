@@ -47,3 +47,12 @@ test('loadConfig throws a prefixed error on invalid JSON', () => {
     fs.rmSync(d, { recursive: true, force: true });
   }
 });
+
+test('globToRegExp expands braces, including nested and with **', () => {
+  const g = globToRegExp('src/**/*.{ts,tsx}');
+  assert.ok(g.test('src/a/b.ts'));
+  assert.ok(g.test('src/b.tsx'));
+  assert.ok(!g.test('src/b.js'));
+  assert.ok(globToRegExp('a/{b,c/{d,e}}.x').test('a/c/e.x'));
+  assert.ok(globToRegExp('a{b').test('a{b'));
+});

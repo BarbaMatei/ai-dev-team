@@ -109,7 +109,7 @@ let cfg;
 let areas;
 try {
   cfg = loadConfig(root);
-  areas = loadAreas(root, cfg);
+  areas = loadAreas(root, cfg, (m) => process.stderr.write(`review: ${m}\n`));
 } catch (e) {
   fail(e.message);
 }
