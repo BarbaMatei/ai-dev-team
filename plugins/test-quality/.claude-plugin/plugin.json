@@ -1,7 +1,7 @@
 {
   "name": "test-quality",
   "version": "0.1.0",
-  "description": "Checks that a branch's new tests prove what the spec's acceptance criteria say: lists the new or changed tests and the criteria they should cover.",
+  "description": "Checks that a branch's new tests can fail and cover the spec: the test-critic agent flags decorative tests, check-tests maps acceptance criteria to tests, writing-tests sets the rules, and scripts list the new tests and criteria.",
   "author": { "name": "Matei Barba" },
   "license": "MIT",
   "repository": "https://github.com/BarbaMatei/ai-dev-team"

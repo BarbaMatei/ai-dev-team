@@ -1,6 +1,6 @@
 {
   "name": "ai-dev-team",
-  "description": "Small standalone Claude Code plugins: guardrails (secret and comment checks, scoped test runner) and review (proven code review).",
+  "description": "Small standalone Claude Code plugins: guardrails, review, spec-upkeep, test-quality and metrics.",
   "owner": { "name": "Matei Barba" },
   "plugins": [
     {
@@ -12,6 +12,21 @@
       "name": "review",
       "source": "./plugins/review",
       "description": "Proven code review: review-bolt and sweep-area run the review, prove-findings keeps only findings a failing test proves, mutate-check shows a regression test guards its line, and design-critic attacks risky designs before coding."
+    },
+    {
+      "name": "spec-upkeep",
+      "source": "./plugins/spec-upkeep",
+      "description": "Reports stale file paths, symbols, commands and links cited in project docs, and the check-docs skill fixes them to match the code."
+    },
+    {
+      "name": "test-quality",
+      "source": "./plugins/test-quality",
+      "description": "Flags decorative new tests with the test-critic agent, maps acceptance criteria to tests, and lists a branch's new tests and criteria with scripts."
+    },
+    {
+      "name": "metrics",
+      "source": "./plugins/metrics",
+      "description": "Records one CSV row per merged PR with time to merge, review counts and token use from Claude Code session logs."
     }
   ]
 }
