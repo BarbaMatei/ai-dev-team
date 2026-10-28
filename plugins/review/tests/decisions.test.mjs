@@ -68,6 +68,12 @@ test('a configured file that is missing exits 2', () => {
   assert.match(r.err, /^review: decisions file not found: nope\.md\n$/);
 });
 
+test('a decisions path that is a directory exits 2', () => {
+  const r = run(repo({ 'docs/x.md': 'x' }, { decisions: 'docs' }), 'a.cs', 'x');
+  assert.equal(r.code, 2);
+  assert.match(r.err, /^review: decisions file not found: docs\n$/);
+});
+
 test('a non-string decisions key exits 2', () => {
   const r = run(repo({}, { decisions: 5 }), 'a.cs', 'x');
   assert.equal(r.code, 2);

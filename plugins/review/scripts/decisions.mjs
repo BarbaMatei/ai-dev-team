@@ -52,7 +52,7 @@ function main() {
   if (cfg.decisions === undefined) return process.stdout.write('no decisions file configured\n');
   if (typeof cfg.decisions !== 'string') fail('.claude/ai-dev-team.json: decisions must be a string');
   const file = path.resolve(root, cfg.decisions);
-  if (!fs.existsSync(file)) fail(`decisions file not found: ${cfg.decisions}`);
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) fail(`decisions file not found: ${cfg.decisions}`);
   const [p, t] = [val('--path') ?? '', val('--text') ?? ''];
   const found = splitEntries(fs.readFileSync(file, 'utf8'))
     .map((e) => [e, scoreEntry(e, p, t)])

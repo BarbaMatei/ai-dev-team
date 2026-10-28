@@ -17,10 +17,17 @@ function git(cwd, args) {
   return spawnSync('git', args, { cwd, env, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 }
 
-const lines = (r) => (r.status === 0 ? r.stdout.split('\0').filter(Boolean).map(toPosix) : []);
+function list(root, args) {
+  const r = git(root, args);
+  if (r.status !== 0) fail(`git ${args.join(' ')}: ${(r.stderr || '').split('\n')[0]}`);
+  return r.stdout.split('\0').filter(Boolean).map(toPosix);
+}
 
 function findBase(root, explicit) {
-  if (explicit) return explicit;
+  if (explicit) {
+    if (git(root, ['rev-parse', '--verify', '--quiet', `${explicit}^{commit}`]).status !== 0) fail(`unknown base ${explicit}`);
+    return explicit;
+  }
   for (const ref of ['origin/HEAD', 'main']) {
     const r = git(root, ['merge-base', 'HEAD', ref]);
     if (r.status === 0 && r.stdout.trim()) return r.stdout.trim();
@@ -35,10 +42,10 @@ function changedFiles(root, base) {
     ['diff', '--name-only', '-z'],
     ['ls-files', '-z', '--others', '--exclude-standard'],
   ];
-  return [...new Set(sets.flatMap((a) => lines(git(root, a))))];
+  return [...new Set(sets.flatMap((a) => list(root, a)))];
 }
 
-const tracked = (root) => lines(git(root, ['ls-files', '-z']));
+const tracked = (root) => list(root, ['ls-files', '-z']);
 const inArea = (area, files) => files.filter((f) => matchesAny(f, area.globs));
 
 function flag(args, name) {
@@ -73,7 +80,7 @@ function nearby(root, areas, args) {
   const all = tracked(root);
   const hit = areas.filter((a) => inArea(a, changed).length > 0);
   const near = new Set([...changed, ...hit.flatMap((a) => inArea(a, all))]);
-  const candidates = [...new Set([...all, ...lines(git(root, ['ls-files', '-z', '--others', '--exclude-standard']))])];
+  const candidates = [...new Set([...all, ...list(root, ['ls-files', '-z', '--others', '--exclude-standard'])])];
   const groups = { near: [], other: [] };
   for (const f of candidates) {
     let buf;
@@ -96,7 +103,7 @@ function nearby(root, areas, args) {
 }
 
 const [cmd, ...args] = process.argv.slice(2);
-if (!['touched', 'files', 'nearby'].includes(cmd)) fail('usage: areas.mjs touched [--base <ref>] | files <area> | nearby --pattern <regex> [--base <ref>]');
+if (!['touched', 'files', 'nearby'].includes(cmd) || (cmd === 'files' && !args[0])) fail('usage: areas.mjs touched [--base <ref>] | files <area> | nearby --pattern <regex> [--base <ref>]');
 const root = projectRoot(process.cwd());
 let cfg;
 let areas;

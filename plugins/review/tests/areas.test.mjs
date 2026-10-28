@@ -63,6 +63,18 @@ test('touched without any resolvable base exits 2', () => {
   assert.match(r.err, /review: cannot find a base; pass --base <ref>/);
 });
 
+test('touched with an unknown --base fails loudly', () => {
+  const r = run(repo(files, cfg), 'touched', '--base', 'no-such-ref');
+  assert.equal(r.code, 2);
+  assert.equal(r.err, 'review: unknown base no-such-ref\n');
+});
+
+test('files without an area prints usage and exits 2', () => {
+  const r = run(repo(files, cfg), 'files');
+  assert.equal(r.code, 2);
+  assert.match(r.err, /^review: usage: /);
+});
+
 test('files lists tracked files of the area, including spaced paths', () => {
   const dir = repo(files, cfg);
   put(dir, 'src/pay/untracked.ts', 'u\n');
