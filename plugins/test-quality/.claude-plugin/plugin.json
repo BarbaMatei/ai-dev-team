@@ -1,0 +1,8 @@
+{
+  "name": "test-quality",
+  "version": "0.1.0",
+  "description": "Checks that a branch's new tests prove what the spec's acceptance criteria say: lists the new or changed tests and the criteria they should cover.",
+  "author": { "name": "Matei Barba" },
+  "license": "MIT",
+  "repository": "https://github.com/BarbaMatei/ai-dev-team"
+}
