@@ -1,6 +1,6 @@
 ---
 name: prove-findings
-description: Use after any code review (/code-review, /security-review, an area sweep) to keep only the findings a failing test proves. Drops style, doc and "consider" items, has a fresh subagent write the smallest failing test for each remaining finding, and returns at most 10 lines.
+description: Use after any code review (/code-review, /security-review, an area sweep) to keep only the findings a failing test proves. Drops style, doc and "consider" items, has a fresh subagent write the smallest failing test for each remaining finding, and returns at most 10 lines (more only when more than 9 findings are proven).
 ---
 
 # Prove findings
@@ -14,7 +14,7 @@ A review finding survives only when a fresh subagent's test fails for the claime
 ## Rule checklist
 
 1. Run `node "<scripts>/areas.mjs" touched --base <base>`. Rule files = the third column of each area line; skip `-` and the `trigger:` line. None: go to Filter.
-2. Dispatch one Agent (`subagent_type: general-purpose`, `model: haiku`) with this prompt: "Read these rule files: <paths>. Each applies only to files matching its `paths:`. Run `git diff <base>...HEAD` (`git diff HEAD` if only uncommitted changes were reviewed). For each added line that breaks a rule print `<file:line> — <what breaks> (rule: <rule file>)`. Print `none` if none. Nothing else."
+2. Dispatch one Agent (`subagent_type: general-purpose`, `model: haiku`) with this prompt: "Read these rule files: <paths>. Each applies only to files matching its `paths:`. Run `git diff <base>...HEAD` (`git diff HEAD` if only uncommitted changes were reviewed), and read every untracked file `git status --porcelain` lists as `??` (all its lines are added). For each added line that breaks a rule print `<file:line> — <what breaks> (rule: <rule file>)`. Print `none` if none. Nothing else."
 3. Add its lines to the findings.
 
 ## Filter
@@ -22,6 +22,7 @@ A review finding survives only when a fresh subagent's test fails for the claime
 1. Drop as `style/doc/consider`: style, formatting, naming, comments, docs, refactors, and "consider"/"could"/"might" items that name no wrong behaviour.
 2. Drop as `missing-test`: claims that only say a test is missing.
 3. Merge duplicates (same place, same claim). Keep only claims of wrong behaviour: wrong result, crash, data loss, leak, race, security hole.
+4. Count each merged duplicate, and anything dropped that fits no bucket (e.g. a pure performance claim), as `style/doc/consider`.
 
 ## Prove
 
@@ -46,19 +47,19 @@ Where: <file:line>
 ## Judge
 
 1. Read each PROVEN test. It counts only when it fails for the claimed reason: the failing assertion checks the wrong behaviour the claim names.
-2. Not proof: a compile or build error, a setup or fixture error, a timeout, an assertion about something else, a mock of the code under the claim. Dispatch a fresh prover once more with the reason added; still not proof → disproven, delete the test.
+2. Not proof: a compile or build error, a setup or fixture error, a timeout, an assertion about something else, a mock of the code under the claim. Delete the rejected test, then dispatch a fresh prover once more with the reason added (its test replaces it); still not proof → disproven, delete that test too.
 3. Check that DISPROVEN and UNTESTABLE provers left no test behind.
-4. Keep at most 3 UNTESTABLE findings, the most severe, printed as UNVERIFIED; count the rest as disproven.
+4. Keep at most 3 UNTESTABLE findings, the most severe, for the UNVERIFIED lines; count the rest as `untestable`.
 5. Leave every proven test in place, failing and uncommitted: it becomes the regression test for the fix. Do not fix the code here.
 
 ## Output
 
-Only these lines, at most 10: PROVEN lines (most severe first), then UNVERIFIED lines (at most 3), then the `discarded:` line. Never drop a PROVEN line to fit.
+Only these lines: every PROVEN line (most severe first, never dropped), then UNVERIFIED lines only while the whole output, `discarded:` line included, stays at most 10 lines, then the `discarded:` line. Each UNVERIFIED left out counts as `untestable`.
 
 ```
 PROVEN <file:line> — <claim> — test <kind> <filter> — pattern <regex>
 UNVERIFIED <file:line> — <claim> — repro: <steps>
-discarded: <n> (<n> style/doc/consider, <n> missing-test, <n> disproven)
+discarded: <n> (<n> style/doc/consider, <n> missing-test, <n> disproven, <n> untestable)
 ```
 
 `<kind>` is the `tests` key used and `<filter>` exactly what replaced `{filter}`, so `mutate-check.mjs --kind <kind> --test <filter>` reuses them verbatim; `<regex>` is the prover's pattern; repro steps stay on one line. Always print the `discarded:` line, even when every count is 0.
