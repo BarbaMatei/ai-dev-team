@@ -1,0 +1,8 @@
+{
+  "name": "review",
+  "version": "0.1.0",
+  "description": "Deterministic helpers for code review: which project areas a change touches and which recorded decisions match a finding.",
+  "author": { "name": "Matei Barba" },
+  "license": "MIT",
+  "repository": "https://github.com/BarbaMatei/ai-dev-team"
+}

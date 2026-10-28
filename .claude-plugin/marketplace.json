@@ -6,6 +6,11 @@
       "name": "guardrails",
       "source": "./plugins/guardrails",
       "description": "Git pre-commit secret and comment checks, driven by an optional per-project config."
+    },
+    {
+      "name": "review",
+      "source": "./plugins/review",
+      "description": "Deterministic helpers for code review: touched areas, nearby pattern search and past-decision lookup."
     }
   ]
 }
