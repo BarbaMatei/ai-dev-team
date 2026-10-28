@@ -96,3 +96,64 @@ describe('findTests / changedTests', () => {
     assert.deepEqual(findTests(['@Test', 'fun sums() {', '}'], 'A.kt'), [{ line: 1, name: 'sums' }]);
   });
 });
+
+describe('tests.mjs fixes', () => {
+  it('runs through a symlinked script path', () => {
+    const link = path.join(base, 'tq-link');
+    fs.symlinkSync(path.dirname(script), link, 'junction');
+    const dir = branchRepo();
+    const r = runIn(path.join(link, 'tests.mjs'), dir, ['list']);
+    assert.match(r.out, /new or changed test\(s\)/);
+  });
+
+  it('diffs an explicit base from its merge-base', () => {
+    const dir = repo({ 'src/m.test.ts': "it('m', () => {\n  z();\n});\n" });
+    git(dir, ['checkout', '-q', '-b', 'feat']);
+    git(dir, ['checkout', '-q', 'main']);
+    put(dir, 'src/m.test.ts', "it('m', () => {\n  a();\n});\n");
+    git(dir, ['commit', '-q', '-am', 'main edit']);
+    git(dir, ['checkout', '-q', 'feat']);
+    assert.equal(run(dir, ['list', '--base', 'main']).out.trim(), 'no new or changed tests');
+  });
+
+  it('rejects --base without a value', () => {
+    const dir = branchRepo();
+    for (const args of [['list', '--base'], ['list', '--base', '--x']]) {
+      const r = run(dir, args);
+      assert.equal(r.code, 2);
+      assert.match(r.err, /^test-quality: .*--base/);
+    }
+  });
+
+  it('finds C# tests after many attributes and ValueTask', () => {
+    const data = Array.from({ length: 6 }, (_, i) => `    [InlineData(${i})]\n`).join('');
+    const cs = `class T\n{\n    [Theory]\n${data}    // note\n\n    public void Many(int a)\n    {\n    }\n\n    [Fact]\n    public async ValueTask Vt()\n    {\n    }\n\n    [Fact]\n    int notATest;\n}\n`;
+    const names = findTests(cs.split('\n'), 'T.cs').map((d) => d.name);
+    assert.deepEqual(names, ['Many', 'Vt']);
+  });
+
+  it('lists a committed spaced file and a staged edit in an existing test', () => {
+    const dir = repo({ 'src/a.test.ts': BASE_A });
+    git(dir, ['checkout', '-q', '-b', 'feat']);
+    put(dir, 'my dir/s.test.ts', "it('sp', () => {\n});\n");
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-q', '-m', 'sp']);
+    put(dir, 'src/a.test.ts', BASE_A.replace('expect(2)', 'expect(5)'));
+    git(dir, ['add', '-A']);
+    const out = run(dir, ['list']).out.trimEnd().split('\n');
+    assert.deepEqual(out, ['my dir/s.test.ts:1\tsp', 'src/a.test.ts:5\tkept', '2 new or changed test(s) in 2 file(s)']);
+  });
+
+  it('counts an added line that starts with ++', () => {
+    const dir = repo({ 'src/a.test.ts': BASE_A });
+    git(dir, ['checkout', '-q', '-b', 'feat']);
+    put(dir, 'src/a.test.ts', BASE_A.replace('  expect(2)', '++ i;\n  expect(2)'));
+    assert.match(run(dir, ['list']).out, /src\/a\.test\.ts:5\tkept/);
+  });
+
+  it('ignores diff prefix config', () => {
+    const dir = branchRepo();
+    git(dir, ['config', 'diff.noprefix', 'true']);
+    assert.match(run(dir, ['list']).out, /src\/a\.test\.ts:2\tadds two/);
+  });
+});

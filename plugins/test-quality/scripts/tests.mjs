@@ -8,7 +8,7 @@ const DEFAULT_GLOBS = ['**/*.test.*', '**/*.spec.*', '**/*Tests.cs', '**/*Test.c
 const SETUP_MAX = 80;
 const JS = /^\s*(?:it|test)(?:\.(?:only|skip|concurrent|failing))?(?:\.each\(.*?\))?\(\s*(['"`])((?:\\.|(?!\1).)*)\1/;
 const CS_ATTR = /^\s*\[(?:Fact|Theory|Test|TestMethod|TestCase|TestCaseSource|DataTestMethod|DataRow)\b/;
-const CS_METHOD = /\b(?:void|Task(?:<[^>]*>)?)\s+(\w+)\s*\(/;
+const CS_METHOD = /\b(?:void|Task|ValueTask)(?:<[^>]*>)?\s+(\w+)\s*\(/;
 const JAVA_METHOD = /\b(?:void|fun)\s+(\w+)\s*\(/;
 
 function fail(msg) {
@@ -23,13 +23,12 @@ export function findTests(lines, file) {
   const attributed = (attr, method) => {
     lines.forEach((text, i) => {
       if (!attr.test(text)) return;
-      for (let j = i; j <= i + 5 && j < lines.length; j++) {
-        const m = method.exec(lines[j]);
-        if (!m) continue;
-        if (j !== lastMethod) decls.push({ line: i + 1, name: m[1] });
-        lastMethod = j;
-        break;
-      }
+      let j = i;
+      if (!method.test(lines[i])) for (j = i + 1; j < lines.length && /^\s*(?:\[.*\]\s*|\/\/.*)?$/.test(lines[j]); j++);
+      const m = j < lines.length && method.exec(lines[j]);
+      if (!m) return;
+      if (j !== lastMethod) decls.push({ line: i + 1, name: m[1] });
+      lastMethod = j;
     });
   };
   if (ext === '.cs') attributed(CS_ATTR, CS_METHOD);
@@ -59,10 +58,12 @@ function git(cwd, args) {
   return spawnSync('git', ['-c', 'core.quotePath=false', ...args], { cwd, env, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 }
 
-function findBase(root, explicit) {
+function findBase(root, explicit, given) {
+  if (given && !explicit) fail('--base needs a ref');
   if (explicit) {
-    if (git(root, ['rev-parse', '--verify', '--quiet', `${explicit}^{commit}`]).status !== 0) fail(`unknown base ${explicit}`);
-    return explicit;
+    const r = git(root, ['merge-base', 'HEAD', explicit]);
+    if (r.status !== 0 || !r.stdout.trim()) fail(`unknown base ${explicit}`);
+    return r.stdout.trim();
   }
   for (const ref of ['origin/HEAD', 'main']) {
     const r = git(root, ['merge-base', 'HEAD', ref]);
@@ -72,16 +73,21 @@ function findBase(root, explicit) {
 }
 
 function addedByFile(root, base) {
-  const d = git(root, ['diff', '--no-color', '--no-renames', '-U0', base]);
+  const d = git(root, ['diff', '--no-color', '--no-renames', '--src-prefix=a/', '--dst-prefix=b/', '-U0', base]);
   if (d.status !== 0) fail(`git diff: ${(d.stderr || '').split('\n')[0]}`);
   const files = new Map();
   let set = null;
+  let header = false;
   for (const line of d.stdout.split('\n')) {
-    if (line.startsWith('+++ ')) {
+    if (line.startsWith('diff --git ')) {
+      header = true;
+      set = null;
+    } else if (header && line.startsWith('@@')) header = false;
+    if (header && line.startsWith('+++ ')) {
       const p = line.slice(4).replace(/\t.*$/, '');
       set = null;
       if (p !== '/dev/null') files.set(toPosix(p.replace(/^b\//, '')), (set = new Set()));
-    } else if (set && line.startsWith('@@')) {
+    } else if (set && !header && line.startsWith('@@')) {
       const m = /\+(\d+)(?:,(\d+))?/.exec(line);
       const n = m[2] === undefined ? 1 : Number(m[2]);
       for (let i = 0; i < n; i++) set.add(Number(m[1]) + i);
@@ -139,7 +145,8 @@ function main() {
     fail(e.message);
   }
   const i = args.indexOf('--base');
-  const files = collect(root, globs, findBase(root, i >= 0 ? args[i + 1] : undefined));
+  const given = args[i + 1];
+  const files = collect(root, globs, findBase(root, given?.startsWith('--') ? undefined : given, i >= 0));
   const n = files.reduce((s, f) => s + f.tests.length, 0);
   if (!n) return void process.stdout.write('no new or changed tests\n');
   if (cmd === 'show') return show(files);
@@ -147,4 +154,4 @@ function main() {
   process.stdout.write(`${n} new or changed test(s) in ${files.length} file(s)\n`);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && fs.realpathSync(path.resolve(process.argv[1])) === fs.realpathSync(fileURLToPath(import.meta.url))) main();
