@@ -38,8 +38,10 @@ function trackedFiles(root) {
 
 function makeIndex(root, tracked) {
   const byPart = new Map();
+  const dirs = new Set();
   for (const f of tracked) {
     const parts = f.split('/');
+    for (let j = 1; j < parts.length; j++) for (let i = 0; i < j; i++) dirs.add(parts.slice(i, j).join('/'));
     for (let i = 0; i < parts.length; i++) {
       const key = parts.slice(i).join('/');
       if (!byPart.has(key)) byPart.set(key, f);
@@ -62,7 +64,9 @@ function makeIndex(root, tracked) {
     }
     return globRes.get(g);
   };
-  return { byPart, lines, onDisk, globHit };
+  const tails = new Set(tracked.map((f) => f.split('/').pop()));
+  const extHit = (p) => [...tails].some((b) => b.endsWith(p));
+  return { byPart, dirs, lines, onDisk, globHit, extHit };
 }
 
 function words(root, tracked) {
@@ -102,12 +106,12 @@ function main() {
 
   const pathProblem = (raw, docDir, { link = false } = {}) => {
     let p = link ? raw : stripLine(raw);
-    p = p.replace(/^\.\//, '');
+    p = p.replace(/^\.\//, '').replace(/\/$/, '');
     if (link) p = p.replace(/^\//, '');
     if (/[*?]/.test(p)) return idx.globHit(p) ? null : 'no match';
     const disk = idx.onDisk(p, docDir);
     const file = disk && fs.statSync(path.join(root, disk)).isFile() ? disk : idx.byPart.get(p);
-    if (!disk && !file) {
+    if (!disk && !file && !idx.dirs.has(p) && !(/^\.[^/]+$/.test(p) && idx.extHit(p))) {
       deps ??= new Set(manifests().flatMap((m) => [...Object.keys(m.dependencies ?? {}), ...Object.keys(m.devDependencies ?? {})]));
       return !p.includes('/') && EXT.test(p) && deps.has(p) ? null : 'no such file';
     }

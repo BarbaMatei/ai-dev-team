@@ -114,9 +114,16 @@ test('a bare name that is a package dependency is clean, a missing one is stale'
 });
 
 test('loose path cites match by suffix only, not by a middle run of segments', () => {
-  const r = cite(['`a/b/c/d.cs`', '`b/c/d.cs`', '`b/c`', '`app/Missing.cs`'], { 'a/b/c/d.cs': 'x\n' });
+  const r = cite(['`a/b/c/d.cs`', '`b/c/d.cs`', '`b/c/d`', '`app/Missing.cs`'], { 'a/b/c/d.cs': 'x\n' });
   assert.equal(r.code, 1);
   assert.deepEqual(r.out.match(/^CLAUDE\.md:\d+/gm), ['CLAUDE.md:3', 'CLAUDE.md:4']);
+});
+
+test('a directory cite, with or without a trailing slash, matches a tracked directory by suffix', () => {
+  const tree = { 'a/b/c/d.cs': 'x\n', 'a/b/e.spec.ts': 'x\n' };
+  assert.deepEqual(cite(['`b/c/`', '`a/b`', '`c`', '`b/c/d`'], tree).out.match(/^CLAUDE\.md:\d+/gm), ['CLAUDE.md:4']);
+  assert.equal(cite(['`b/c/`', '`a/b`', '`.spec.ts`', '`.cs`'], tree).code, 0);
+  assert.deepEqual(cite(['`.nope.ts`', '`gone/`'], tree).out.match(/^CLAUDE\.md:\d+/gm), ['CLAUDE.md:1', 'CLAUDE.md:2']);
 });
 
 test('a file:N cite on a directory is not resolved as a file', () => {
