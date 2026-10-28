@@ -99,3 +99,44 @@ test('docDrift with a wrong type exits 2', () => {
   assert.equal(r.code, 2);
   assert.match(r.err, /^spec-upkeep: \.claude\/ai-dev-team\.json: docDrift\.files/);
 });
+
+const cite = (lines, extra = {}) => run(repo({ ...files({ 'CLAUDE.md': lines.join('\n') + '\n' }), ...extra }));
+
+test('git and gh arguments are never path-checked; other tools skip URLs and scoped packages', () => {
+  const r = cite(['`git checkout -b feature/x`', '`git commit -m "fix a/b"`', '`gh repo clone o/r`', '`npx @angular/cli new x`', '`docker pull https://r.io/a/b`']);
+  assert.equal(r.code, 0, r.out);
+});
+
+test('a bare name that is a package dependency is clean, a missing one is stale', () => {
+  const pkg = JSON.stringify({ scripts: { test: 'x' }, dependencies: { 'chart.js': '1' }, devDependencies: { 'vitest.mjs': '1' } });
+  assert.equal(cite(['`chart.js`', '`vitest.mjs`'], { 'package.json': pkg }).code, 0);
+  assert.equal(cite(['`other.js`'], { 'package.json': pkg }).code, 1);
+});
+
+test('loose path cites match by suffix only, not by a middle run of segments', () => {
+  const r = cite(['`a/b/c/d.cs`', '`b/c/d.cs`', '`b/c`', '`app/Missing.cs`'], { 'a/b/c/d.cs': 'x\n' });
+  assert.equal(r.code, 1);
+  assert.deepEqual(r.out.match(/^CLAUDE\.md:\d+/gm), ['CLAUDE.md:3', 'CLAUDE.md:4']);
+});
+
+test('a file:N cite on a directory is not resolved as a file', () => {
+  assert.equal(cite(['`src/app:5`']).code, 0);
+});
+
+test('a tracked file deleted in the working tree is stale and a deleted doc is skipped', () => {
+  const dir = repo(files({ 'CLAUDE.md': '`src/app/Order.cs:2`\n', 'memory-bank/standards/gone.md': '`src/nope.cs`\n' }));
+  fs.rmSync(path.join(dir, 'src/app/Order.cs'));
+  fs.rmSync(path.join(dir, 'memory-bank/standards/gone.md'));
+  const r = run(dir);
+  assert.equal(r.code, 1, r.err);
+  assert.equal(r.err, '');
+  assert.match(r.out, /^CLAUDE\.md:1: path `src\/app\/Order\.cs:2` — no such file$/m);
+  assert.match(r.out, /1 stale reference\(s\) in 1 file\(s\)/);
+});
+
+test('a large report is written in full', () => {
+  const many = Array.from({ length: 3000 }, (_, i) => `\`src/gone/f${i}.cs\``);
+  const r = cite(many);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /doc-drift: 3000 stale reference\(s\) in 1 file\(s\)\s*$/);
+});

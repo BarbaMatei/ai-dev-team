@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot, loadConfig, globToRegExp, matchesAny, toPosix } from './lib/project.mjs';
-import { extractCitations, stripLine, EXT } from './lib/citations.mjs';
+import { extractCitations, stripLine, EXT, NOLINE_CMDS } from './lib/citations.mjs';
 
 const DEFAULT_FILES = ['CLAUDE.md', 'AGENTS.md', '.claude/rules/**/*.md', 'memory-bank/standards/**/*.md'];
 const MAX_BYTES = 1024 * 1024;
@@ -33,7 +33,7 @@ function trackedFiles(root) {
   for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
   const r = spawnSync('git', ['ls-files', '-z'], { cwd: root, env, encoding: 'utf8', maxBuffer: 1 << 28 });
   if (r.status !== 0) fail('git ls-files failed; run inside a git repository');
-  return r.stdout.split('\0').filter(Boolean).map(toPosix);
+  return r.stdout.split('\0').filter(Boolean).map(toPosix).filter((f) => fs.existsSync(path.join(root, f)));
 }
 
 function makeIndex(root, tracked) {
@@ -41,10 +41,8 @@ function makeIndex(root, tracked) {
   for (const f of tracked) {
     const parts = f.split('/');
     for (let i = 0; i < parts.length; i++) {
-      for (let j = i + 1; j <= parts.length; j++) {
-        const key = parts.slice(i, j).join('/');
-        if (!byPart.has(key)) byPart.set(key, f);
-      }
+      const key = parts.slice(i).join('/');
+      if (!byPart.has(key)) byPart.set(key, f);
     }
   }
   const lineCache = new Map();
@@ -93,6 +91,14 @@ function main() {
   const tracked = trackedFiles(root);
   const idx = makeIndex(root, tracked);
   let wordSet = null;
+  let deps = null;
+  const manifests = () => tracked.filter((f) => f.split('/').pop() === 'package.json').map((f) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(root, f), 'utf8'));
+    } catch {
+      return {};
+    }
+  });
 
   const pathProblem = (raw, docDir, { link = false } = {}) => {
     let p = link ? raw : stripLine(raw);
@@ -101,7 +107,10 @@ function main() {
     if (/[*?]/.test(p)) return idx.globHit(p) ? null : 'no match';
     const disk = idx.onDisk(p, docDir);
     const file = disk && fs.statSync(path.join(root, disk)).isFile() ? disk : idx.byPart.get(p);
-    if (!disk && !file) return 'no such file';
+    if (!disk && !file) {
+      deps ??= new Set(manifests().flatMap((m) => [...Object.keys(m.dependencies ?? {}), ...Object.keys(m.devDependencies ?? {})]));
+      return !p.includes('/') && EXT.test(p) && deps.has(p) ? null : 'no such file';
+    }
     const n = link ? null : /:(\d+)(?:-\d+)?$/.exec(raw);
     if (n && file && idx.lines(file) < Number(n[1])) return `line ${n[1]} past end of ${file} (${idx.lines(file)} lines)`;
     return null;
@@ -111,17 +120,11 @@ function main() {
     const [cmd, sub, third, ...rest] = text.split(/\s+/);
     if (cmd === 'npm' && (sub === 'test' || sub === 'start' || (sub === 'run' && third))) {
       const script = sub === 'run' ? third : sub;
-      const has = tracked.filter((f) => f.split('/').pop() === 'package.json').some((f) => {
-        try {
-          return JSON.parse(fs.readFileSync(path.join(root, f), 'utf8')).scripts?.[script] !== undefined;
-        } catch {
-          return false;
-        }
-      });
-      if (!has) return `npm script ${script} not found`;
+      if (!manifests().some((m) => m.scripts?.[script] !== undefined)) return `npm script ${script} not found`;
     }
+    if (NOLINE_CMDS.has(cmd)) return null;
     for (const a of [sub, third, ...rest].filter(Boolean).map((t) => t.replace(/^["']|["']$/g, ''))) {
-      if (a.startsWith('-') || !(a.includes('/') || EXT.test(a) || a.startsWith('.'))) continue;
+      if (/^(-|http|@)/.test(a) || !(a.includes('/') || EXT.test(a) || a.startsWith('.'))) continue;
       if (pathProblem(a, docDir)) return `no such file ${a}`;
     }
     return null;
@@ -161,7 +164,8 @@ function main() {
   }
   if (bad.length) {
     process.stdout.write(`${bad.join('\n')}\ndoc-drift: ${bad.length} stale reference(s) in ${badFiles.size} file(s)\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   process.stdout.write(`doc-drift: clean (${total} references in ${docs.length} files)\n`);
 }

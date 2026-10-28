@@ -33,3 +33,18 @@ test('extractCitations gives the same line numbers for CRLF and LF', () => {
 test('extractCitations skips external and anchor links', () => {
   assert.deepEqual(extractCitations('[a](https://x.io) [b](#top) [c](mailto:a@b.io)'), []);
 });
+
+test('classify treats dotted type names and product names as symbols or skips them', () => {
+  for (const s of ['System.Text.Json', 'Newtonsoft.Json', 'Foo.Xml']) assert.equal(classify(s), 'symbol', s);
+  for (const s of ['Node.js', 'Vue.js', '@stripe/stripe-js', '@angular/cli']) assert.equal(classify(s), null, s);
+});
+
+test('classify keeps dot-prefixed paths only when they look like paths', () => {
+  for (const s of ['.githooks', '.gitleaks.toml', '.env.example', '.claude/rules']) assert.equal(classify(s), 'path', s);
+  for (const s of ['.scss', '.cshtml', '.ts', '.env', '.NET']) assert.equal(classify(s), null, s);
+});
+
+test('classify needs a lower-upper-lower run for a camel-case symbol', () => {
+  for (const s of ['guestSession', 'PostgresTestDatabase', 'IStorageRouter', 'OnPush']) assert.equal(classify(s), 'symbol', s);
+  for (const s of ['PostgreSQL', 'MinIO']) assert.equal(classify(s), null, s);
+});
