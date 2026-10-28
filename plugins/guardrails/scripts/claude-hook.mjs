@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot, loadConfig, matchesAny, toPosix } from './lib/project.mjs';
 import { findSecrets, isCommentLine, readSettings } from './checks.mjs';
@@ -9,6 +10,21 @@ function edits(tool, input) {
   if (tool === 'Edit') return [{ old: input.old_string, text: input.new_string }];
   if (tool === 'MultiEdit' && Array.isArray(input.edits)) return input.edits.map((e) => ({ old: e?.old_string, text: e?.new_string }));
   return null;
+}
+
+function canonical(p) {
+  const tail = [];
+  let cur = p;
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync.native(cur), ...tail.reverse());
+    } catch {
+      const up = path.dirname(cur);
+      if (up === cur) return p;
+      tail.push(path.basename(cur));
+      cur = up;
+    }
+  }
 }
 
 const lines = (s) => (typeof s === 'string' ? s.split(/\r?\n/) : []);
@@ -34,7 +50,7 @@ process.stdin.on('end', () => {
     settings = readSettings({});
   }
   const abs = input.tool_input.file_path;
-  const rel = toPosix(path.relative(root, abs));
+  const rel = toPosix(path.relative(canonical(root), canonical(abs)));
   const out = [];
 
   if (mode === 'secrets') {

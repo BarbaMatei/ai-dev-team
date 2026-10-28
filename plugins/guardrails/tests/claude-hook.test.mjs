@@ -101,3 +101,11 @@ test('9 comments: MultiEdit and Write count added lines', () => {
   assert.equal(call(d, 'comments', 'MultiEdit', { file_path: f, edits: [{ old_string: 'a', new_string: '// n' }] }).code, 2);
   assert.equal(call(d, 'comments', 'Write', { file_path: f, content: 'int x;\n// n\n' }).code, 2);
 });
+
+test('10 file_path spelled through a link to the repo still matches allowPaths', () => {
+  const d = repo({ secrets: { allowPaths: ['docs/**'] } });
+  const link = path.join(base, `link${n++}`);
+  fs.symlinkSync(d, link, 'junction');
+  const r = call(d, 'secrets', 'Write', { file_path: path.join(link, 'docs', 'a.md'), content: sk });
+  assert.equal(r.code, 0);
+});
