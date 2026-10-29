@@ -71,8 +71,7 @@ function listFiles(root, areas, name) {
 function of(areas, fileArgs) {
   for (const f of fileArgs) {
     const names = areas.filter((a) => matchesAny(toPosix(f), a.globs)).map((a) => a.name);
-    process.stdout.write(`${f}	${names.length ? names.join(',') : '-'}
-`);
+    process.stdout.write(`${f}\t${names.length ? names.join(',') : '-'}\n`);
   }
 }
 
