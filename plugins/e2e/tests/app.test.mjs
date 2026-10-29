@@ -58,6 +58,9 @@ import http from 'node:http';
 spawn(process.execPath, [process.argv[4], process.argv[3]], { stdio: 'ignore' });
 http.createServer((q, r) => r.end('ok')).listen(Number(process.argv[2]), '127.0.0.1');
 `,
+  'late.mjs': `import http from 'node:http';
+setTimeout(() => http.createServer((q, r) => r.end('ok')).listen(Number(process.argv[2]), '127.0.0.1'), 5000);
+`,
   'quit.mjs': `console.log('quit-line-marker');
 `,
   'hang.mjs': `console.log('pid=' + process.pid);
@@ -79,6 +82,11 @@ const configure = (dir, e2e) => fs.writeFileSync(path.join(dir, '.claude', 'ai-d
 const q = (p) => `"${p}"`;
 const cmd = (dir, file, ...args) => `${q(process.execPath)} ${q(path.join(dir, file))} ${args.join(' ')}`;
 const url = (port) => `http://127.0.0.1:${port}/`;
+const statePath = (dir) => {
+  const key = crypto.createHash('sha1').update(projectRoot(dir)).digest('hex').slice(0, 12);
+  return path.join(os.tmpdir(), 'ai-dev-team-e2e', key, 'state.json');
+};
+const bootNow = () => Math.round(Date.now() / 1000 - os.uptime());
 const lines = (r) => r.stdout.trim().split(/\r?\n/);
 
 test('up starts the entries in order, status sees them, down stops them with their ports', async () => {
@@ -195,4 +203,66 @@ test('an invalid e2e.boot exits 2 with one line', () => {
   assert.equal(r.status, 2);
   assert.equal(r.stderr.trim().split(/\r?\n/).length, 1);
   assert.match(r.stderr, /e2e\.boot must be an array/);
+});
+
+test('an up that was cut off leaves no orphan: the next up replaces it and down stops everything', async () => {
+  const port = await freePort();
+  const dir = project({});
+  configure(dir, { baseUrl: url(port), timeoutSec: 30, boot: [{ name: 'late', command: cmd(dir, 'late.mjs', port), ready: url(port) }] });
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
+  const first = spawn(process.execPath, [script, 'up'], { cwd: dir, env, stdio: 'ignore' });
+  for (let i = 0; i < 40 && !fs.existsSync(statePath(dir)); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.ok(fs.existsSync(statePath(dir)), 'state.json must exist while the first up waits');
+  first.kill();
+  await new Promise((r) => first.on('exit', r));
+  const second = run(dir, ['up']);
+  assert.equal(second.status, 0, second.stderr);
+  assert.match(second.stdout, /ready late/);
+  assert.deepEqual(lines(run(dir, ['down'])), ['stopped late']);
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(await listens(port), false);
+});
+
+function bystander() {
+  const win = process.platform === 'win32';
+  const p = spawn(win ? 'ping' : 'sleep', win ? ['-n', '30', '127.0.0.1'] : ['30'], { stdio: 'ignore', windowsHide: true });
+  servers.push(p);
+  return p;
+}
+
+function writeState(dir, boot, pid) {
+  fs.mkdirSync(path.dirname(statePath(dir)), { recursive: true });
+  fs.writeFileSync(statePath(dir), JSON.stringify({ boot, started: [{ name: 'web', pid }] }));
+}
+
+test('down ignores a state file written before the last reboot', () => {
+  const dir = project({ baseUrl: 'http://127.0.0.1:1', boot: [{ name: 'web', ready: 'http://127.0.0.1:1/' }] });
+  const p = bystander();
+  writeState(dir, bootNow() - 86400, p.pid);
+  const down = run(dir, ['down']);
+  assert.equal(down.stdout.trim(), 'e2e: nothing to stop');
+  assert.doesNotThrow(() => process.kill(p.pid, 0), 'the unrelated process must survive');
+});
+
+test('down never kills a live pid that is not a node process', () => {
+  const dir = project({ baseUrl: 'http://127.0.0.1:1', boot: [{ name: 'web', ready: 'http://127.0.0.1:1/' }] });
+  const p = bystander();
+  writeState(dir, bootNow(), p.pid);
+  const down = run(dir, ['down']);
+  assert.equal(down.stdout.trim(), 'gone web');
+  assert.doesNotThrow(() => process.kill(p.pid, 0), 'the unrelated process must survive');
+});
+
+test('duplicate or unsafe boot names exit 2 with one line', () => {
+  const entry = (name) => ({ name, ready: 'http://127.0.0.1:1/' });
+  for (const [boot, re] of [
+    [[entry('a'), entry('a')], /duplicate/],
+    [[entry('../x')], /boot\[0\]\.name/],
+  ]) {
+    const r = run(project({ baseUrl: 'http://127.0.0.1:1', boot }), ['status']);
+    assert.equal(r.status, 2);
+    assert.equal(r.stderr.trim().split(/\r?\n/).length, 1);
+    assert.match(r.stderr, re);
+  }
 });

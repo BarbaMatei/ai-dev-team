@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadE2e } from './lib/config.mjs';
+import { killTree, ours } from './lib/proc.mjs';
 import { projectRoot } from './lib/project.mjs';
 
 const SUPERVISE = fileURLToPath(new URL('./supervise.mjs', import.meta.url));
@@ -34,43 +35,24 @@ async function isReady(url) {
   }
 }
 
-function alive(pid) {
-  try {
-    process.kill(process.platform === 'win32' ? pid : -pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function killTree(pid) {
-  if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
-    return;
-  }
-  try {
-    process.kill(-pid, 'SIGTERM');
-  } catch {
-    return;
-  }
-  for (let i = 0; i < 20 && alive(pid); i++) await sleep(100);
-  try {
-    process.kill(-pid, 'SIGKILL');
-  } catch {}
-}
-
 function stateFiles(root) {
   const key = crypto.createHash('sha1').update(root).digest('hex').slice(0, 12);
   const dir = path.join(os.tmpdir(), 'ai-dev-team-e2e', key);
   return { dir, file: path.join(dir, 'state.json') };
 }
 
+const bootTime = () => Math.round(Date.now() / 1000 - os.uptime());
+
 function readState(file) {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return { started: [] };
-  }
+    const st = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (Math.abs(st.boot - bootTime()) <= 5 && Array.isArray(st.started)) return st;
+  } catch {}
+  return { started: [] };
+}
+
+function save(st, file) {
+  fs.writeFileSync(file, JSON.stringify({ ...st, boot: bootTime() }));
 }
 
 function logTail(log) {
@@ -88,8 +70,10 @@ function logTail(log) {
 async function stopAll(st, names) {
   const stopped = [];
   for (const p of [...st.started].filter((x) => !names || names.includes(x.name))) {
-    await killTree(p.pid);
-    stopped.push(p.name);
+    if (ours(p.pid)) {
+      await killTree(p.pid);
+      stopped.push(`stopped ${p.name}`);
+    } else stopped.push(`gone ${p.name}`);
   }
   st.started = st.started.filter((x) => names && !names.includes(x.name));
   return stopped;
@@ -102,15 +86,19 @@ async function up(root, cfg, st, paths) {
   const fail = async (msg) => {
     process.stderr.write(`${msg}\n`);
     await stopAll(st, mine);
-    fs.writeFileSync(paths.file, JSON.stringify(st));
+    save(st, paths.file);
     process.exit(1);
   };
   for (const e of cfg.boot) {
     if (await isReady(e.ready)) {
       out(`reuse ${e.name}`);
+      st.started = st.started.filter((x) => x.name !== e.name || ours(x.pid));
+      save(st, paths.file);
       continue;
     }
     if (!e.command) await fail(`e2e: ${e.name} not ready at ${e.ready} and has no command; start it first`);
+    for (const old of st.started.filter((x) => x.name === e.name)) if (ours(old.pid)) await killTree(old.pid);
+    st.started = st.started.filter((x) => x.name !== e.name);
     const log = path.join(paths.dir, `${e.name}.log`);
     const child = spawn(process.execPath, [SUPERVISE, log, e.command, e.cwd ? path.resolve(root, e.cwd) : root], {
       detached: true,
@@ -121,10 +109,9 @@ async function up(root, cfg, st, paths) {
     let exited = false;
     child.on('exit', () => (exited = true));
     child.unref();
-    st.started = st.started.filter((x) => x.name !== e.name);
     st.started.push({ name: e.name, pid: child.pid });
     mine.push(e.name);
-    fs.writeFileSync(paths.file, JSON.stringify(st));
+    save(st, paths.file);
     const deadline = Date.now() + cfg.timeoutSec * 1000;
     let ready = false;
     while (!ready && !exited && Date.now() < deadline) {
@@ -162,7 +149,7 @@ async function main() {
     const stopped = await stopAll(st);
     fs.rmSync(paths.file, { force: true });
     if (!stopped.length) out('e2e: nothing to stop');
-    for (const n of stopped) out(`stopped ${n}`);
+    for (const l of stopped) out(l);
   } else {
     try {
       await up(root, cfg, st, paths);

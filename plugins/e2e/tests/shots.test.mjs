@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const script = fileURLToPath(new URL('../scripts/shots.mjs', import.meta.url));
 const base = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e shots-'));
@@ -29,8 +29,10 @@ function setup(write = true, browser) {
   return { dir, log, out: path.join(dir, 'out dir') };
 }
 
-function run(dir, args) {
+function run(dir, args, extraEnv = {}) {
   const env = { ...process.env };
+  for (const k of Object.keys(env)) if (Object.keys(extraEnv).some((x) => x.toLowerCase() === k.toLowerCase())) delete env[k];
+  Object.assign(env, extraEnv);
   for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
   return spawnSync(process.execPath, [script, ...args], { cwd: dir, env, encoding: 'utf8', timeout: 40000 });
 }
@@ -91,4 +93,46 @@ test('a configured browser that does not exist exits 2', () => {
   const r = run(dir, [out, '/x']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /^e2e: browser not found: /);
+});
+
+test('an output folder under a file exits 2 with one line and no stack', () => {
+  const { dir } = setup();
+  const file = path.join(dir, 'a-file');
+  fs.writeFileSync(file, 'x');
+  const r = run(dir, [path.join(file, 'sub'), '/x']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stderr.trim().split(/\r?\n/).length, 1, r.stderr);
+  assert.doesNotMatch(r.stderr, /\n\s+at /);
+});
+
+const unconfigured = () => {
+  const s = setup();
+  fs.writeFileSync(path.join(s.dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ e2e: { baseUrl: 'http://localhost:4200' } }));
+  const empty = path.join(s.dir, 'empty');
+  fs.mkdirSync(empty);
+  return { ...s, env: { PATH: '', ProgramFiles: empty, 'ProgramFiles(x86)': empty, LOCALAPPDATA: empty } };
+};
+
+test('with e2e.browser unset, CHROME_PATH is the browser that runs', () => {
+  const { dir, out, env } = unconfigured();
+  const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, CHROME_PATH: process.execPath });
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stderr, /e2e: no screenshot for/);
+});
+
+test('with e2e.browser unset and no browser anywhere the detection fails', async (t) => {
+  if (process.platform !== 'win32' && ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge'].some((n) => fs.existsSync('/usr/bin/' + n))) t.skip('a real browser is installed');
+  const { findBrowser } = await import(pathToFileURL(script).href);
+  const empty = path.join(base, 'empty');
+  fs.mkdirSync(empty, { recursive: true });
+  const keys = ['PATH', 'Path', 'ProgramFiles', 'ProgramFiles(x86)', 'LOCALAPPDATA', 'CHROME_PATH'];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  try {
+    for (const k of keys) delete process.env[k];
+    Object.assign(process.env, { PATH: '', ProgramFiles: empty, 'ProgramFiles(x86)': empty, LOCALAPPDATA: empty, CHROME_PATH: path.join(empty, 'missing') });
+    assert.throws(() => findBrowser({}), (e) => e.code === 2 && /no Chromium-based browser found/.test(e.message));
+  } finally {
+    for (const k of keys) if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
 });

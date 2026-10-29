@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadE2e } from './lib/config.mjs';
 import { projectRoot } from './lib/project.mjs';
 
@@ -44,7 +45,7 @@ function onPath() {
   return null;
 }
 
-function findBrowser(cfg) {
+export function findBrowser(cfg) {
   if (cfg.browser) {
     const [exe, ...args] = Array.isArray(cfg.browser) ? cfg.browser : [cfg.browser];
     if (!isFile(exe)) throw Object.assign(new Error(`e2e: browser not found: ${exe}`), { code: 2 });
@@ -104,8 +105,8 @@ function main() {
     }
   } catch (e) {
     process.stderr.write(`${e.message}\n`);
-    process.exit(e.code ?? 2);
+    process.exit(typeof e.code === 'number' ? e.code : 2);
   }
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
