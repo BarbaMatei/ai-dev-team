@@ -67,6 +67,13 @@ describe('tokens.mjs list', () => {
     assert.ok(lines(r).includes('ink\t#000'), r.out);
   });
 
+  it('strips a comment that follows a semicolon without merging the next line', () => {
+    const dir = project({ 's.scss': '$a: #fff;// note\n$b: #000;\n' }, { uiReview: { tokens: ['s.scss'] } });
+    const r = run(dir, ['list']);
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual(lines(r), ['a\t#fff', 'b\t#000']);
+  });
+
   it('exits 2 with one line on invalid config JSON', () => {
     const r = run(project({}, '{ nope'), ['list']);
     assert.equal(r.code, 2);

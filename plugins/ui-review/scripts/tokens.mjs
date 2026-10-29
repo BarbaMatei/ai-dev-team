@@ -8,7 +8,7 @@ function fail(msg) {
 }
 
 const stripBlock = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
-const stripLine = (t) => t.replace(/(^|\s)\/\/.*$/gm, '$1');
+const stripLine = (t) => t.replace(/(^|[\s;{}])\/\/.*$/gm, '$1');
 const tidy = (v) => v.replace(/!(default|global)/g, '').replace(/\s+/g, ' ').trim();
 const FUNC_OK = /^(rgba?|hsla?)\(/;
 
