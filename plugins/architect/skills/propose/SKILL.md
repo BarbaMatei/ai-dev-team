@@ -14,14 +14,14 @@ You turn one topic into a few evidence-checked proposals. A driver then takes a 
 
 ## Gather and cost
 
-1. `node "<scripts>/context.mjs" brief "<topic>" [--area <name>] > <tmp>/architect-brief.md`. Exit 2 → show its message (it lists the area names for an unknown area) and stop.
+1. `node "<scripts>/context.mjs" brief "<topic>" [--area <name>] > "<tmp>/architect-brief.md"`. Exit 2 → show its message (it lists the area names for an unknown area) and stop.
 2. Announce in one line: "<topic>: ≈ <(area lines, from the `total:` line of `## Area files`, or 2000 without `--area`) × 15 / 1000 + 40>k tokens. Go?"
 3. Wait for an explicit yes. Anything else, or no answer (a headless run), ends the run here.
 
 ## Propose and check
 
 4. One Agent (`subagent_type: architect:architect`): "Brief: <tmp>/architect-brief.md. Topic: <topic>. Maximum: <n>." Save its reply to `<tmp>/architect-proposals.md`.
-5. `node "<scripts>/context.mjs" check "<tmp>/architect-proposals.md"`.
+5. `node "<scripts>/context.mjs" check "<tmp>/architect-proposals.md"`. Exit 2: show its line and stop.
    - `cites: ok` → continue.
    - Exit 1 → each `bad` line ends with `(in "<block title>")` and each `no-code-cite` line names its block. Send these lines to the same agent once (SendMessage) and ask it to return all proposals again with those blocks fixed from code it reads. Save the reply and check again.
    - Blocks named by the lines that still fail → drop those blocks and count them. `unchecked #<n>` lines are not failures.
@@ -29,12 +29,12 @@ You turn one topic into a few evidence-checked proposals. A driver then takes a 
 
 ## Land the proposals
 
-7. Ask the owner where they go if not already said; the default is one GitHub issue per kept proposal. For each kept block:
+7. Before the first issue, `gh label list --search <label> --json name`. If the exact name is absent, create it once: `gh label create <label> --description "Architect proposal for specsmd inception"`.
+8. One GitHub issue per kept proposal. For each kept block:
    1. `gh issue list --search "<title> in:title" --state open`. An open issue with the same title → note its number and skip.
    2. Write that block alone to `<tmp>/architect-issue.md`.
-   3. `gh issue create --title "<title>" --label <architect.label> --body-file <that path>`.
-   Before the first issue, `gh label list --search <label> --json name`. If the exact name is absent, create it once: `gh label create <label> --description "Architect proposal for specsmd inception"`.
-8. `gh` missing or failing → keep all kept proposals in `<tmp>/architect-proposals.md`, and put the exact `gh issue create` command for each in the reply.
+   3. `gh issue create --title "<title>" --label <architect.label> --body-file "<tmp>/architect-issue.md"`.
+9. `gh` missing or failing → keep all kept proposals in `<tmp>/architect-proposals.md`, and put the exact `gh issue create` command for each in the reply.
 
 ## Reply
 

@@ -6,7 +6,7 @@ Start the app, take screenshots of its pages, and turn story acceptance criteria
 
 - `app.mjs up|down|status` starts the app's parts in order (for example the API, then the web server), waits until each answers, and stops them again with everything they started. A part that already runs is reused and left alone.
 - `shots.mjs` takes one PNG per page and screen size with a headless browser.
-- Skill `e2e:capture` boots the app, takes the screenshots and returns the folder. Args: `<route>... [--viewports 390x844,1280x800] [--keep]`.
+- Skill `e2e:capture` boots the app, takes the screenshots and returns the folder. Args: `<route>... [--viewports 390x844,1280x800] [--wait <ms>] [--keep]`.
 - Skill `e2e:browser-test` writes one Playwright spec per story from its acceptance criteria and runs it. Args: `<story file>...`. It never creates the e2e project: that is your call, and `skills/browser-test/conventions.md` says how.
 
 ## Settings
