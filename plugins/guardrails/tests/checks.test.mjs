@@ -78,6 +78,10 @@ const guardCases = [
   ["cat <<'EOF' > notes.txt\nnpm test\nEOF\ndotnet test x", 'bash', '--filter'],
   ['echo "x; npm test"', 'bash', null],
   ['npm test -- --watch=false 2>&1 | tail -5', 'bash', 'npm test without a test filter'],
+  ["# don't block this\necho 'a; dotnet test b'", 'bash', null],
+  ['# setup\ndotnet test x', 'bash', '--filter'],
+  ["git commit -m @'\nfix: don't hang\ndotnet test now scoped\n'@", 'powershell', null],
+  ['echo a#b; dotnet test x', 'bash', '--filter'],
 ];
 
 for (const [command, shell, expected] of guardCases) {

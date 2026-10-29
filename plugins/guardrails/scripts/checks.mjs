@@ -62,6 +62,16 @@ function heredocEnd(command, from, delim) {
   return command.length;
 }
 
+function hereStringEnd(command, from, closer) {
+  let start = command.indexOf('\n', from) + 1;
+  while (start > 0 && start < command.length) {
+    if (command.startsWith(closer, start)) return start + closer.length - 1;
+    const nl = command.indexOf('\n', start);
+    start = nl < 0 ? command.length : nl + 1;
+  }
+  return command.length;
+}
+
 function segments(command, shell) {
   const esc = shell === 'powershell' ? '`' : '\\';
   const out = [];
@@ -92,6 +102,11 @@ function segments(command, shell) {
       if (c === quote) quote = null;
       else if (quote === '"' && c === esc && (next === '"' || next === esc)) word += command[++i];
       else word += c;
+    } else if (shell !== 'powershell' && c === '#' && !inWord) {
+      while (i + 1 < command.length && command[i + 1] !== '\n') i++;
+    } else if (shell === 'powershell' && c === '@' && !inWord && (next === "'" || next === '"') && /^\r?\n/.test(command.slice(i + 2))) {
+      i = hereStringEnd(command, i + 2, `${next}@`);
+      inWord = true;
     } else if (c === "'" || c === '"') {
       quote = c;
       inWord = true;
@@ -153,7 +168,7 @@ function segmentReason(words, shell) {
   } else if (['npm', 'pnpm', 'yarn'].includes(t[0])) {
     const s = t[1] === 'run' ? 2 : 1;
     if (t[s] !== 'test') return null;
-    if (shell === 'powershell' && t[0] === 'npm') return 'PowerShell drops the "--" before npm script arguments, so the filter never arrives; use npx ng test --include=... or run it in Bash';
+    if (shell === 'powershell' && t[0] === 'npm') return 'PowerShell drops the "--" before npm script arguments, so the filter never arrives; call the test runner directly (npx <runner> ...) or run it in Bash';
     const rest = t.slice(s + 1);
     const after = t[0] !== 'npm' ? rest : rest.includes('--') ? rest.slice(rest.indexOf('--') + 1) : [];
     if (!after.some((a) => !a.startsWith('-') || FILTER.test(a))) return `${t[0]} test without a test filter runs the whole suite`;

@@ -121,7 +121,7 @@ test('12 tests: PowerShell tool uses the powershell rules', () => {
   const d = repo();
   const r = call(d, 'tests', 'PowerShell', { command: 'npm test -- --include="a"' });
   assert.equal(r.code, 2);
-  assert.match(r.err, /PowerShell drops the "--"/);
+  assert.match(r.err, /PowerShell drops the "--" before npm script arguments, so the filter never arrives; call the test runner directly \(npx <runner>/);
   assert.equal(call(d, 'tests', 'Bash', { command: 'npm test -- --include="a"' }).code, 0);
 });
 

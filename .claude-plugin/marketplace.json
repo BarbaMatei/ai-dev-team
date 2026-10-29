@@ -6,7 +6,7 @@
     {
       "name": "guardrails",
       "source": "./plugins/guardrails",
-      "description": "Git pre-commit secret and comment checks, Claude Code hooks that apply them while Claude edits, and a scoped test runner that prints only totals and failures."
+      "description": "Git pre-commit secret and comment checks, Claude Code hooks that apply them while Claude edits, a hook that blocks unscoped test commands, and a scoped test runner that prints only totals and failures."
     },
     {
       "name": "review",
