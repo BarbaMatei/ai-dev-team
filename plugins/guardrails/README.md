@@ -35,7 +35,7 @@ Installing the plugin registers them (`hooks/hooks.json`). Before a `Write`, `Ed
 
 ## Test guard
 
-Before a `Bash` or `PowerShell` call, the `tests` hook blocks a test command that would run the whole suite (each command in a chain is checked, quoted text ignored): `dotnet test` without `--filter`; `ng test` without `--include`; `npm test` with no filter after `--` (`--include`, `-t`, `--filter` or a path); `vitest` without a file or `-t`; and `npm test` in PowerShell, which drops the `--` so the filter never arrives (use `npx ng test --include=...` or Bash). `"testGuard": false` turns it off.
+Before a `Bash` or `PowerShell` call, the `tests` hook blocks a test command that would run the whole suite (each command in a chain is checked, quoted text ignored): `dotnet test` without `--filter`; `ng test` without `--include`; `npm`/`pnpm`/`yarn test` with no filter (after `--` for npm; `--include`, `-t`, `--filter` or a path); `vitest` without a file or `-t`; and `npm test` in PowerShell, which drops the `--` so the filter never arrives (use `npx ng test --include=...` or Bash). `"testGuard": false` turns it off.
 
 ## scoped-test
 

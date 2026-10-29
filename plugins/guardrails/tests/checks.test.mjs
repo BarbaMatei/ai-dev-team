@@ -65,6 +65,11 @@ const guardCases = [
   ['npm run test:e2e', 'bash', null],
   ['npm test -- --watch=false', 'bash', 'npm test without a test filter'],
   ['npx ng test --watch=false', 'bash', 'ng test without --include'],
+  ['npm test -- "src/a.test.js"', 'bash', null],
+  ["npm test -- 'src/a b.test.js'", 'bash', null],
+  ['yarn test -t foo', 'bash', null],
+  ['pnpm test src/a.test.js', 'bash', null],
+  ['pnpm test', 'bash', 'npm test without a test filter'],
 ];
 
 for (const [command, shell, expected] of guardCases) {
