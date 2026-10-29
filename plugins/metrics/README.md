@@ -7,17 +7,18 @@ One CSV row per merged PR (one PR = one bolt): how long it took, how the review 
 Default `metrics/bolts.csv` (`metrics.file`). Columns:
 
 - `pr`, `branch` (the PR's head branch), `merged_at`.
-- `bolt_start`: when the PR's oldest commit was authored; `hours_to_merge`: merge time minus that, one decimal.
+- `bolt_start`: the earlier of the PR's oldest commit's authored time and the first counted log line on the branch; `hours_to_merge`: merge time minus that, one decimal. Create the bolt branch at routing so early work counts.
 - `review_rounds`, `findings_proven`, `findings_discarded`, `findings_unverified`: from the PR body line `Rounds: <r> · proven: <p> · discarded: <d> · unverified: <u>` (the review plugin's PR body). No such line: empty.
 - `tokens_total` = `tokens_input` (input + cache creation) + `tokens_cache_read` + `tokens_output`.
 - `sessions`, `subagents`: Claude Code session files and subagent files that contributed tokens.
+- `tokens_fresh` (last column) = `tokens_input` + `tokens_output`: the thesis figure. A file with the old header gets the column added, old rows kept, on the next write.
 
 ## Token rule and limits
 
-Reads every `*.jsonl` under `<logs>/` (`--logs`, else `$CLAUDE_CONFIG_DIR/projects`, else `~/.claude/projects`), all project folders, subagent logs included. Counts assistant lines whose `gitBranch` is the PR branch and whose timestamp is at or before the merge, once per `message.id`.
+Reads every `*.jsonl` under `<logs>/` (`--logs`, else `$CLAUDE_CONFIG_DIR/projects`, else `~/.claude/projects`), all project folders, subagent logs included. Counts assistant lines whose `gitBranch` is the PR branch and whose timestamp is at or before the PR was opened (`createdAt`; chat after that is not bolt work), once per `message.id`.
 
 - Only sessions whose checkout was on the PR's branch count: work in a side worktree on another branch does not.
-- A branch name reused elsewhere before the merge would be counted.
+- A branch name reused elsewhere before the PR opened would be counted.
 
 ## CLI
 

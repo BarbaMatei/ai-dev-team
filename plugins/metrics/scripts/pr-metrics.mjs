@@ -8,7 +8,7 @@ import { Stop, runGh } from './lib/gh.mjs';
 import { sumTokens } from './lib/logs.mjs';
 import { loadConfig, projectRoot } from './lib/project.mjs';
 
-export const COLUMNS = 'pr,branch,bolt_start,merged_at,hours_to_merge,review_rounds,findings_proven,findings_discarded,findings_unverified,tokens_total,tokens_input,tokens_cache_read,tokens_output,sessions,subagents'.split(',');
+export const COLUMNS = 'pr,branch,bolt_start,merged_at,hours_to_merge,review_rounds,findings_proven,findings_discarded,findings_unverified,tokens_total,tokens_input,tokens_cache_read,tokens_output,sessions,subagents,tokens_fresh'.split(',');
 const REVIEW = /Rounds:\s*(\d+)\s*·\s*proven:\s*(\d+)\s*·\s*discarded:\s*(\d+)\s*·\s*unverified:\s*(\d+)/;
 const NEEDS_SINCE = 'metrics: set metrics.since in .claude/ai-dev-team.json or start with --pr <n>';
 
@@ -18,14 +18,14 @@ export function parseReview(body) {
 }
 
 export function buildRow(pr, tokens) {
-  const start = pr.commits.map((c) => c.authoredDate).sort((a, b) => Date.parse(a) - Date.parse(b))[0];
+  const start = [...pr.commits.map((c) => c.authoredDate), ...(tokens.first ? [tokens.first] : [])].sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   const r = parseReview(pr.body) ?? {};
   const hours = ((Date.parse(pr.mergedAt) - Date.parse(start)) / 3600000).toFixed(1);
   return {
     pr: pr.number, branch: pr.headRefName, bolt_start: start, merged_at: pr.mergedAt, hours_to_merge: hours,
     review_rounds: r.rounds ?? '', findings_proven: r.proven ?? '', findings_discarded: r.discarded ?? '', findings_unverified: r.unverified ?? '',
     tokens_total: tokens.total, tokens_input: tokens.input, tokens_cache_read: tokens.cacheRead, tokens_output: tokens.output,
-    sessions: tokens.sessions, subagents: tokens.subagents,
+    sessions: tokens.sessions, subagents: tokens.subagents, tokens_fresh: tokens.input + tokens.output,
   };
 }
 
@@ -84,12 +84,16 @@ function record(opts, out) {
       out(`PR #${n}: already recorded`);
       continue;
     }
-    const pr = ghJson(['pr', 'view', n, '--json', 'number,headRefName,mergedAt,body,commits,state']);
+    const pr = ghJson(['pr', 'view', n, '--json', 'number,headRefName,createdAt,mergedAt,body,commits,state']);
     if (!pr.mergedAt || pr.state !== 'MERGED') throw new Stop(1, `PR #${n} is not merged`);
-    const row = buildRow(pr, sumTokens(opts.logs, pr.headRefName, pr.mergedAt));
+    const row = buildRow(pr, sumTokens(opts.logs, pr.headRefName, pr.createdAt ?? pr.mergedAt));
     added.push(row);
     if (opts.dry) continue;
-    const old = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+    let old = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+    if (old !== '' && !old.split(/\r?\n/, 1)[0].split(',').includes('tokens_fresh')) {
+      old = `${[COLUMNS.join(','), ...parseCsv(old).map(toCsvLine)].join('\n')}\n`;
+      fs.writeFileSync(file, old);
+    }
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.appendFileSync(file, (old === '' ? `${COLUMNS.join(',')}\n` : old.endsWith('\n') ? '' : '\n') + `${toCsvLine(row)}\n`);
     if (opts.hook) git(root, ['add', '--', rel]);

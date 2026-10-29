@@ -1,6 +1,6 @@
 {
   "name": "metrics",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Records one CSV row per merged PR: time to merge, review counts from the PR body and token use summed from Claude Code session logs.",
   "author": { "name": "Matei Barba" },
   "license": "MIT",

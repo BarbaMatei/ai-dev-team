@@ -16,7 +16,8 @@ function* jsonlFiles(dir) {
 }
 
 export function sumTokens(projectsDir, branch, untilIso) {
-  const out = { input: 0, cacheRead: 0, output: 0, total: 0, sessions: 0, subagents: 0 };
+  const out = { input: 0, cacheRead: 0, output: 0, total: 0, sessions: 0, subagents: 0, first: null };
+  let firstMs = Infinity;
   const until = Date.parse(untilIso);
   const needle = `"gitBranch":${JSON.stringify(branch)}`;
   const seen = new Set();
@@ -44,6 +45,8 @@ export function sumTokens(projectsDir, branch, untilIso) {
         if (seen.has(id)) continue;
         seen.add(id);
       }
+      const ts = Date.parse(o.timestamp);
+      if (ts < firstMs) (firstMs = ts, out.first = o.timestamp);
       out.input += (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
       out.cacheRead += u.cache_read_input_tokens ?? 0;
       out.output += u.output_tokens ?? 0;

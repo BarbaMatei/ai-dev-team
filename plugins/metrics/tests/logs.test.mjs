@@ -29,9 +29,19 @@ test('sums deduped assistant usage on the branch up to the merge time', () => {
   write('p1/s1/subagents/agent-a.jsonl', [line('m5', 'feat/x', '2026-01-01T10:10:00Z', [2, 0, 50, 3])]);
   write('p1/s1/subagents/agent-a.meta.json', ['{}']);
   write('p2/s2.jsonl', [line('m6', 'other', '2026-01-01T10:00:00Z', [50, 0, 0, 50])]);
-  assert.deepEqual(sumTokens(dir, 'feat/x', '2026-01-01T12:00:00Z'), { input: 18, cacheRead: 150, output: 11, total: 179, sessions: 1, subagents: 1 });
+  assert.deepEqual(sumTokens(dir, 'feat/x', '2026-01-01T12:00:00Z'), { input: 18, cacheRead: 150, output: 11, total: 179, sessions: 1, subagents: 1, first: '2026-01-01T10:00:00.123Z' });
 });
 
 test('a missing projects dir sums to zero', () => {
-  assert.deepEqual(sumTokens(path.join(dir, 'nope'), 'feat/x', '2026-01-01T12:00:00Z'), { input: 0, cacheRead: 0, output: 0, total: 0, sessions: 0, subagents: 0 });
+  assert.deepEqual(sumTokens(path.join(dir, 'nope'), 'feat/x', '2026-01-01T12:00:00Z'), { input: 0, cacheRead: 0, output: 0, total: 0, sessions: 0, subagents: 0, first: null });
+});
+
+test('first is the earliest counted timestamp, ignoring lines after the cutoff', () => {
+  write('p3/s3.jsonl', [
+    line('f1', 'feat/first', '2026-02-01T10:00:00Z', [1, 0, 0, 1]),
+    line('f0', 'feat/first', '2026-02-01T08:00:00Z', [1, 0, 0, 1]),
+    line('f2', 'feat/first', '2026-02-01T13:00:00Z', [1, 0, 0, 1]),
+  ]);
+  assert.equal(sumTokens(dir, 'feat/first', '2026-02-01T12:00:00Z').first, '2026-02-01T08:00:00Z');
+  assert.equal(sumTokens(dir, 'feat/first', '2026-02-01T07:00:00Z').first, null);
 });

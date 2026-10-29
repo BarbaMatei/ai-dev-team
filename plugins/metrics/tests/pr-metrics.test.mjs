@@ -23,7 +23,7 @@ function git(cwd, args) {
   return r.stdout;
 }
 const BODY = 'Summary\nRounds: 2 · proven: 3 · discarded: 4 · unverified: 1\n';
-const PR7 = { number: 7, headRefName: 'feat/y', mergedAt: '2026-01-01T12:30:00Z', state: 'MERGED', body: BODY, commits: [{ authoredDate: '2026-01-01T10:00:00Z' }, { authoredDate: '2026-01-01T09:00:00Z' }] };
+const PR7 = { number: 7, headRefName: 'feat/y', createdAt: '2026-01-01T12:00:00Z', mergedAt: '2026-01-01T12:30:00Z', state: 'MERGED', body: BODY, commits: [{ authoredDate: '2026-01-01T10:00:00Z' }, { authoredDate: '2026-01-01T09:00:00Z' }] };
 
 const FAKE_GH = (data) => `import fs from 'node:fs';
 const d = JSON.parse(fs.readFileSync(${JSON.stringify(data)}, 'utf8'));
@@ -36,7 +36,7 @@ if (a[0] === 'pr' && a[1] === 'view') {
 else process.exit(1);
 `;
 
-function setup({ branch = 'main', init = 'main', config, prs = { 7: PR7 }, list, gitConfig } = {}) {
+function setup({ branch = 'main', init = 'main', config, prs = { 7: PR7 }, list, gitConfig, logLines } = {}) {
   const id = n++;
   const dir = path.join(base, `w${id}`);
   fs.mkdirSync(dir);
@@ -55,7 +55,7 @@ function setup({ branch = 'main', init = 'main', config, prs = { 7: PR7 }, list,
   const logs = path.join(base, `logs${id}`);
   fs.mkdirSync(logs);
   const l = (mid, ts) => JSON.stringify({ type: 'assistant', timestamp: ts, gitBranch: 'feat/y', message: { id: mid, usage: { input_tokens: 10, cache_creation_input_tokens: 5, cache_read_input_tokens: 100, output_tokens: 7 } } });
-  fs.writeFileSync(path.join(logs, 's.jsonl'), [l('a', '2026-01-01T10:00:00Z'), l('a', '2026-01-01T10:00:00Z'), l('late', '2026-01-02T00:00:00Z')].join('\n') + '\n');
+  fs.writeFileSync(path.join(logs, 's.jsonl'), (logLines ? logLines(l) : [l('a', '2026-01-01T10:00:00Z'), l('a', '2026-01-01T10:00:00Z'), l('late', '2026-01-02T00:00:00Z')]).join('\n') + '\n');
   return { dir, gh: `node "${gh}"`, logs };
 }
 function run(s, args) {
@@ -64,7 +64,7 @@ function run(s, args) {
 }
 const csv = (s) => path.join(s.dir, 'metrics', 'bolts.csv');
 const HEADER = COLUMNS.join(',');
-const ROW7 = '7,feat/y,2026-01-01T09:00:00Z,2026-01-01T12:30:00Z,3.5,2,3,4,1,122,15,100,7,1,0';
+const ROW7 = '7,feat/y,2026-01-01T09:00:00Z,2026-01-01T12:30:00Z,3.5,2,3,4,1,122,15,100,7,1,0,22';
 
 test('parseReview reads the pr-body line', () => {
   assert.deepEqual(parseReview(`a\n${BODY}b`), { rounds: 2, proven: 3, discarded: 4, unverified: 1 });
@@ -72,7 +72,7 @@ test('parseReview reads the pr-body line', () => {
 });
 
 test('buildRow uses the oldest commit and one decimal of hours', () => {
-  const row = buildRow({ ...PR7, body: 'x' }, { input: 15, cacheRead: 100, output: 7, total: 122, sessions: 1, subagents: 0 });
+  const row = buildRow({ ...PR7, body: 'x' }, { input: 15, cacheRead: 100, output: 7, total: 122, sessions: 1, subagents: 0, first: null });
   assert.equal(row.bolt_start, '2026-01-01T09:00:00Z');
   assert.equal(row.hours_to_merge, '3.5');
   assert.deepEqual([row.review_rounds, row.findings_proven, row.findings_discarded, row.findings_unverified], ['', '', '', '']);
@@ -266,4 +266,46 @@ test('bad --hook-timeout or empty --gh: one line, exit 2, exit 0 in the hook', (
     assert.equal(h.code, 0, bad.join(' '));
     assert.equal(h.err.trim().split('\n').length, 1);
   }
+});
+
+test('buildRow starts the bolt at the first log line when it is earlier than the first commit', () => {
+  const row = buildRow(PR7, { input: 15, cacheRead: 0, output: 7, total: 22, sessions: 1, subagents: 0, first: '2026-01-01T07:30:00Z' });
+  assert.equal(row.bolt_start, '2026-01-01T07:30:00Z');
+  assert.equal(row.hours_to_merge, '5.0');
+});
+
+test('buildRow keeps the first commit when the log starts later or is missing', () => {
+  const t = { input: 0, cacheRead: 0, output: 0, total: 0, sessions: 0, subagents: 0 };
+  assert.equal(buildRow(PR7, { ...t, first: '2026-01-01T09:30:00Z' }).bolt_start, '2026-01-01T09:00:00Z');
+  assert.equal(buildRow(PR7, { ...t, first: null }).bolt_start, '2026-01-01T09:00:00Z');
+});
+
+test('tokens_fresh is input plus output', () => {
+  const row = buildRow(PR7, { input: 15, cacheRead: 100, output: 7, total: 122, sessions: 1, subagents: 0, first: null });
+  assert.equal(row.tokens_fresh, 22);
+  assert.equal(COLUMNS.at(-1), 'tokens_fresh');
+});
+
+test('--pr counts no tokens after the PR was opened and starts at an earlier log line', () => {
+  const s = setup({ logLines: (l) => [l('early', '2026-01-01T08:00:00Z'), l('open', '2026-01-01T11:59:00Z'), l('chat', '2026-01-01T12:10:00Z')] });
+  const r = run(s, ['--pr', '7', '--dry-run']);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.out, `${HEADER}
+7,feat/y,2026-01-01T08:00:00Z,2026-01-01T12:30:00Z,4.5,2,3,4,1,244,30,200,14,1,0,44
+`);
+});
+
+test('a CSV with the old header gains tokens_fresh and keeps every old value', () => {
+  const s = setup();
+  fs.mkdirSync(path.dirname(csv(s)));
+  const oldHeader = HEADER.replace(',tokens_fresh', '');
+  fs.writeFileSync(csv(s), `${oldHeader}
+6,"feat,z",a,2025-01-01T00:00:00Z,1.0,1,2,3,4,10,5,3,2,1,0
+`);
+  const r = run(s, ['--pr', '7']);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(fs.readFileSync(csv(s), 'utf8'), `${HEADER}
+6,"feat,z",a,2025-01-01T00:00:00Z,1.0,1,2,3,4,10,5,3,2,1,0,
+${ROW7}
+`);
 });
