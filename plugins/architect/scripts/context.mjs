@@ -115,6 +115,7 @@ function brief(root, cfg, args) {
 
 const CITE = /^(.+?)(?::(\d+)(?:-(\d+))?)?$/;
 function judgeCite(root, set, token, title) {
+  if (/[*?<>{}]|:\/\//.test(token)) return null;
   const m = CITE.exec(token);
   const p = m[1].replace(/^\.\//, '');
   if (!p.includes('/') && !set.has(p)) return null;
@@ -149,7 +150,7 @@ function checkFile(root, args) {
     for (const num of new Set([...block.matchAll(/#(\d+)/g)].map((m) => m[1]))) {
       ghUp ??= ghJson(gh, root, ['issue', 'list', '--limit', '1', '--json', 'number']) !== null;
       if (!ghUp) notes.push(`unchecked #${num}`);
-      else if (ghJson(gh, root, ['issue', 'view', num, '--json', 'number']) === null) problems.push(`bad #${num} — no such issue`);
+      else if (ghJson(gh, root, ['issue', 'view', num, '--json', 'number']) === null) problems.push(`bad #${num} — no such issue (in "${title}")`);
       else ok++;
     }
   }

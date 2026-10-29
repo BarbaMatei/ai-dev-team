@@ -229,3 +229,27 @@ test('non-object architect config exits 2', () => {
     assert.match(r.err, /architect must be an object/);
   }
 });
+
+test('check tags a bad issue ref with its block title', () => {
+  const r = check('## Alpha\n`src/x.ts:1`\n\n## Beta\n`src/x.ts:1` and #7\n');
+  assert.equal(r.code, 1);
+  assert.match(r.out, /bad #7 — .* \(in "Beta"\)/);
+});
+
+test('check ignores glob and placeholder tokens', () => {
+  const r = check('## T\n`memory-bank/intents/*/requirements.md` `src/{a,b}.ts` `src/<name>.ts` `src/?.ts` `src/x.ts:1`\n');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /cites: ok \(1\)/);
+});
+
+test('check ignores URL tokens', () => {
+  const r = check('## T\n`https://example.com/a/b` `src/x.ts:1`\n');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /cites: ok \(1\)/);
+});
+
+test('check flags a block whose only backticked token is a dotted name', () => {
+  const r = check('## Only dotted\n`Orders.IdempotencyKey`\n');
+  assert.equal(r.code, 1);
+  assert.match(r.out, /no-code-cite Only dotted/);
+});
