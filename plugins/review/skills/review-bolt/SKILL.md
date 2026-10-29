@@ -44,10 +44,10 @@ Bug: <claim> at <file:line>
 Test: run only it: <command> in <dir>, with {filter} replaced by <filter>. It fails now.
 1. Make that test pass with the smallest change to production code. Fix it where the behaviour is owned; never put one feature's text or rule into shared code to make the test pass. Change nothing else: not the test, no refactors, no comments, no other behaviour. Exception: an existing test that asserts exactly the behaviour your fix removes may change, only that assertion.
 2. Run only that test; it must pass. Do not commit.
-3. Reply with exactly one line:
+3. Reply with one FIXED or STUCK line; when you changed an existing assertion, also one UPDATED-TEST line:
    FIXED <file:line of the line that fixes it> — now: <that line's text> — pre-fix: <its exact text before your change; empty if you added the line>
-   UPDATED-TEST <file:line> — <why>   (extra line, only when you changed such an existing assertion)
    STUCK — <one line why> (undo every change you made first)
+   UPDATED-TEST <file:line> — <why>
 ```
 
 10. STUCK → copy the proving test into "Needs owner" as a code block with the default you would take, then remove that test from the tree.

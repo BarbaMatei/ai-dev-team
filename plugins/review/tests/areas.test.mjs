@@ -200,3 +200,12 @@ test('nearby --max at or above the site count prints the sites as without it', (
   assert.equal(r.code, 0, r.err);
   assert.equal(r.out.trim().split('\n').length, 4);
 });
+
+test('nearby --max must be a positive integer', () => {
+  const dir = repo(files, cfg);
+  for (const bad of [['--max', 'abc'], ['--max', '0'], ['--max']]) {
+    const r = run(dir, 'nearby', '--pattern', 'x', ...bad);
+    assert.equal(r.code, 2, bad.join(' '));
+    assert.match(r.err, /^review: usage: /);
+  }
+});

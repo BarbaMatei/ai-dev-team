@@ -24,7 +24,7 @@ Rounds: <1|2> · proven: <n> · discarded: <n> · unverified: <n>
 
 Tests changed by fixes: <each `UPDATED-TEST` line; none → "None.">
 
-Round-2 fixes are covered by their proving tests and are not re-reviewed.
+<Rounds = 2 only: "Round-2 fixes are covered by their proving tests and are not re-reviewed.">
 
 ## Same bug elsewhere (not fixed here)
 
@@ -44,7 +44,7 @@ Round-2 fixes are covered by their proving tests and are not re-reviewed.
 
 ## Risks
 
-- <what could still go wrong, in plain words; none known → "None known.">
+- <what could still go wrong, in plain words; no risks and no `BY-DESIGN` items → "None known.">
 - <each `BY-DESIGN` item: file:line — claim; the spec or plan asks for it>
 
 ## Needs owner

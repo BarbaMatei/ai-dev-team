@@ -9,7 +9,7 @@ You attack one technical design before any code is written. Find the concrete se
 
 ## Read (about 20k tokens, no more)
 
-1. The design document you were given.
+1. The design document you were given (the technical design, or the implementation plan of a bolt without a design stage).
 2. The rule files you were given. None given: read `rulesDir` from `.claude/ai-dev-team.json` (default `.claude/rules`) and take the rule files whose `paths:` match a file the design names.
 3. Files the design names, only the parts it changes or relies on. Grep for a named symbol; do not explore further.
 

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig, loadAreas, matchesAny, projectRoot, toPosix } from './lib/project.mjs';
 
+const USAGE = 'usage: areas.mjs touched [--base <ref>] | files <area> | of <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]';
 const MAX_LINES = 30;
 const MAX_BYTES = 1024 * 1024;
 
@@ -84,6 +85,8 @@ function nearby(root, areas, args) {
   } catch (e) {
     fail(`invalid --pattern: ${e.message}`);
   }
+  const maxArg = args.includes('--max') ? flag(args, '--max') : undefined;
+  if (args.includes('--max') && !/^[1-9]\d*$/.test(maxArg ?? '')) fail(USAGE);
   const changed = changedFiles(root, findBase(root, flag(args, '--base')));
   const all = tracked(root);
   const hit = areas.filter((a) => inArea(a, changed).length > 0);
@@ -105,10 +108,9 @@ function nearby(root, areas, args) {
     });
   }
   const total = groups.near.length + groups.other.length;
-  const max = flag(args, '--max');
-  if (max !== undefined && total > Number(max)) {
-    process.stderr.write(`review: pattern matched ${total} sites (max ${max}); narrow it
-`);
+  const max = maxArg === undefined ? undefined : Number(maxArg);
+  if (max !== undefined && total > max) {
+    process.stderr.write(`review: pattern matched ${total} sites (max ${max}); narrow it\n`);
     process.exit(3);
   }
   for (const [key, title] of [['near', 'in bolt area'], ['other', 'elsewhere']]) {
@@ -118,7 +120,7 @@ function nearby(root, areas, args) {
 }
 
 const [cmd, ...args] = process.argv.slice(2);
-if (!['touched', 'files', 'of', 'nearby'].includes(cmd) || ((cmd === 'files' || cmd === 'of') && !args[0])) fail('usage: areas.mjs touched [--base <ref>] | files <area> | of <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]');
+if (!['touched', 'files', 'of', 'nearby'].includes(cmd) || ((cmd === 'files' || cmd === 'of') && !args[0])) fail(USAGE);
 const root = projectRoot(process.cwd());
 let cfg;
 let areas;
