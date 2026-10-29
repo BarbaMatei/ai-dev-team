@@ -19,8 +19,8 @@ You review how screens look and report what is visibly wrong. You change no proj
 3. `node "<scripts>/tokens.mjs" list > "<tmp>/ui-tokens.txt"`. Exit 2: show its line and stop.
 4. Dispatch one `ui-critic` agent (Agent tool, `subagent_type: ui-review:ui-critic`) with the screenshot full paths, `<tmp>/ui-tokens.txt`, the `uiReview.rules` files and the focus. Keep its lines.
 5. Check its output:
-   1. Every finding that names two colours: `node "<scripts>/tokens.mjs" contrast <a> <b>`. Drop the finding when the ratio is 4.5 or more (3 or more for large text: 24 px, or 19 px bold). Exit 2 (a colour that is not hex): keep the finding.
-   2. Every `capture` line: run `e2e:capture` once more for that route and viewport with `--wait 10000`, and send only the new file to a new `ui-critic` run. Still failing: report it as a `capture` line.
+   1. Every finding that names two colours: `node "<scripts>/tokens.mjs" contrast <a> <b>`. Drop the finding when the ratio is 4.5 or more, or 3 or more when the line says `large text`. Exit 2 (a colour that is not hex): keep the finding.
+   2. Every `capture` line, when the screenshots came from routes: its file name starts with the route's slug (`/` is `root`, `/a/b?x` is `a-b`, lowercase). Run `e2e:capture` once more with only those routes and `--wait 10000`, then run the critic again on just the new files. Still failing: report it as a `capture` line. When the input was `.png` files: report the `capture` lines as they are, no recapture.
    3. Count the dropped findings.
 6. Per finding, find the source file as best you can: the route's component from the project's router (Grep). Unsure: write `source: unknown`.
 7. Write `ui-review.md` in the screenshots' folder: the screenshots reviewed, the findings numbered with screenshot, rule or token and source file, and the dropped count.

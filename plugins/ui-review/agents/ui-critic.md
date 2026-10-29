@@ -44,5 +44,6 @@ checked: <n> screenshots
 
 - `blocker`: the screen cannot be used or the primary action is unreachable. `a11y`: item 4. `consistency`: items 3 and 5. `polish`: everything else.
 - At most 12 finding lines, worst first. Contrast findings name both colours in the second part, for example `text #767676 on #ffffff`.
+- Write `large text` in a contrast finding when the text is clearly large (24 px or more, or 19 px or more and bold).
 - `<n>` = screenshots you looked at, including `capture` ones.
 - Never a taste opinion, a "consider", a praise line or anything you cannot see in a screenshot. Nothing visibly wrong → only the `checked:` line.

@@ -60,6 +60,19 @@ describe('tokens.mjs list', () => {
     assert.deepEqual(lines(run(dir, ['list'])), ['color.primary\t#112233']);
   });
 
+  it('keeps the next token after a protocol-relative url value', () => {
+    const dir = project({ 's.scss': '$icon: url(//cdn.example.com/a.png);\n$ink: #000;\n' }, { uiReview: { tokens: ['s.scss'] } });
+    const r = run(dir, ['list']);
+    assert.equal(r.code, 0, r.err);
+    assert.ok(lines(r).includes('ink\t#000'), r.out);
+  });
+
+  it('exits 2 with one line on invalid config JSON', () => {
+    const r = run(project({}, '{ nope'), ['list']);
+    assert.equal(r.code, 2);
+    assert.equal(r.err.trim().split('\n').length, 1);
+  });
+
   it('exits 2 when uiReview.tokens is not set', () => {
     const r = run(project({}), ['list']);
     assert.equal(r.code, 2);
