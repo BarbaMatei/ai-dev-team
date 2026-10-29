@@ -121,7 +121,8 @@ test('with e2e.browser unset, CHROME_PATH is the browser that runs', () => {
 });
 
 test('with e2e.browser unset and no browser anywhere the detection fails', async (t) => {
-  if (process.platform !== 'win32' && ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge'].some((n) => fs.existsSync('/usr/bin/' + n))) t.skip('a real browser is installed');
+  const mac = process.platform === 'darwin' && fs.existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
+  if (mac || (process.platform !== 'win32' && ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge'].some((n) => fs.existsSync('/usr/bin/' + n)))) return t.skip('a real browser is installed');
   const { findBrowser } = await import(pathToFileURL(script).href);
   const empty = path.join(base, 'empty');
   fs.mkdirSync(empty, { recursive: true });
