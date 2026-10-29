@@ -190,6 +190,21 @@ test('of resolves absolute, ./ and subdirectory-relative paths against the proje
   assert.deepEqual(sub.out.trim().split(/\r?\n/), ['b.ts\tpay']);
 });
 
+test('of matches a file reached through a linked spelling of the project directory', (t) => {
+  const dir = repo(files, cfg);
+  const link = dir + '-link';
+  try {
+    fs.symlinkSync(dir, link, 'junction');
+  } catch (e) {
+    t.skip("cannot create a directory link here: " + e.code);
+    return;
+  }
+  const viaLink = path.join(link, 'src', 'pay', 'b.ts');
+  const r = run(dir, 'of', viaLink);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.out.trim(), viaLink + "	pay");
+});
+
 test('of without a file prints usage and exits 2', () => {
   const r = run(repo(files, cfg), 'of');
   assert.equal(r.code, 2);

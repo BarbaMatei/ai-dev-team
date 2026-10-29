@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadConfig, loadAreas, matchesAny, projectRoot, toPosix } from './lib/project.mjs';
+import { canonical, loadConfig, loadAreas, matchesAny, projectRoot, toPosix } from './lib/project.mjs';
 
 const USAGE = 'usage: areas.mjs touched [--base <ref>] | files <area> | of <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]';
 const MAX_LINES = 30;
@@ -70,7 +70,7 @@ function listFiles(root, areas, name) {
 
 function of(root, areas, fileArgs) {
   for (const f of fileArgs) {
-    const rel = toPosix(path.relative(root, path.resolve(process.cwd(), f)));
+    const rel = toPosix(path.relative(canonical(root), canonical(path.resolve(process.cwd(), f))));
     const names = areas.filter((a) => matchesAny(rel, a.globs)).map((a) => a.name);
     process.stdout.write(`${f}\t${names.length ? names.join(',') : '-'}\n`);
   }

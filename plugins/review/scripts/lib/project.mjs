@@ -6,6 +6,21 @@ export function toPosix(p) {
   return p.replace(/\\/g, '/');
 }
 
+export function canonical(p) {
+  const tail = [];
+  let cur = p;
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync.native(cur), ...tail.reverse());
+    } catch {
+      const up = path.dirname(cur);
+      if (up === cur) return p;
+      tail.push(path.basename(cur));
+      cur = up;
+    }
+  }
+}
+
 export function projectRoot(cwd) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
