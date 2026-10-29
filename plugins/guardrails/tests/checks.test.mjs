@@ -69,7 +69,9 @@ const guardCases = [
   ["npm test -- 'src/a b.test.js'", 'bash', null],
   ['yarn test -t foo', 'bash', null],
   ['pnpm test src/a.test.js', 'bash', null],
-  ['pnpm test', 'bash', 'npm test without a test filter'],
+  ['pnpm test', 'bash', 'pnpm test without a test filter'],
+  ['npm test -- "--watch=false"', 'bash', 'npm test without a test filter'],
+  ['pnpm test "--watch=false"', 'bash', 'pnpm test without a test filter'],
 ];
 
 for (const [command, shell, expected] of guardCases) {

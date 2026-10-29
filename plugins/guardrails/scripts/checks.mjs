@@ -59,7 +59,7 @@ const VITEST = new RegExp(String.raw`^${ENV}(?:npx\s+)?vitest\b`);
 const NPM_ONLY = new RegExp(String.raw`^${ENV}npm\s`);
 
 export function unscopedTestReason(command, shell) {
-  const stripped = command.replace(/"[^"]*"|'[^']*'/g, '__q__');
+  const stripped = command.replace(/"([^"]*)"|'([^']*)'/g, (_, a, b) => ((a ?? b).startsWith('-') ? '-__q__' : '__q__'));
   for (const raw of stripped.split(/&&|\|\||;|\||\r?\n/)) {
     const seg = raw.trim();
     if (DOTNET_TEST.test(seg)) {
@@ -71,7 +71,7 @@ export function unscopedTestReason(command, shell) {
         const tail = pm[1] === 'npm' ? seg.split(/\s--(?:\s|$)/).slice(1).join(' ') : seg.slice(pm[0].length);
         const after = tail.split(/\s+/).filter(Boolean);
         const scoped = after.some((a) => !a.startsWith('-') || /^(--include|-t$|--testNamePattern|--filter)/.test(a));
-        if (!scoped) return 'npm test without a test filter runs the whole suite';
+        if (!scoped) return `${pm[1]} test without a test filter runs the whole suite`;
       } else if (!/--include\b/.test(seg)) return 'ng test without --include runs the whole suite';
     } else if (VITEST.test(seg)) {
       const args = seg.replace(VITEST, '').trim().split(/\s+/).filter(Boolean);
