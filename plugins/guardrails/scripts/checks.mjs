@@ -51,33 +51,120 @@ export function readSettings(cfg) {
   return { patterns, allowPaths: strings(secrets.allowPaths, 'secrets.allowPaths'), hint: secrets.hint, extensions: extensions.map((e) => e.toLowerCase()) };
 }
 
-const ENV = String.raw`(?:\S+=\S*\s+)*`;
-const DOTNET_TEST = new RegExp(String.raw`^${ENV}dotnet\s+test\b`);
-const NPM_TEST = new RegExp(String.raw`^${ENV}(npm|pnpm|yarn)\s+(?:run\s+)?test(?=\s|$)`);
-const NG_TEST = new RegExp(String.raw`^${ENV}(?:npx\s+)?ng\s+test\b`);
-const VITEST = new RegExp(String.raw`^${ENV}(?:npx\s+)?vitest\b`);
-const NPM_ONLY = new RegExp(String.raw`^${ENV}npm\s`);
+function heredocEnd(command, from, delim) {
+  let start = from;
+  while (start < command.length) {
+    const nl = command.indexOf('\n', start);
+    const end = nl < 0 ? command.length : nl;
+    if (command.slice(start, end).trim() === delim) return end;
+    start = end + 1;
+  }
+  return command.length;
+}
+
+function segments(command, shell) {
+  const esc = shell === 'powershell' ? '`' : '\\';
+  const out = [];
+  const delims = [];
+  let seg = [];
+  let word = '';
+  let inWord = false;
+  let quote = null;
+  let target = null;
+  const endWord = () => {
+    if (!inWord) return;
+    if (target === 'heredoc') delims.push(word);
+    else if (target !== 'redirect') seg.push(word);
+    target = null;
+    word = '';
+    inWord = false;
+  };
+  const endSegment = () => {
+    endWord();
+    if (seg.length) out.push(seg);
+    seg = [];
+    target = null;
+  };
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    const next = command[i + 1];
+    if (quote) {
+      if (c === quote) quote = null;
+      else if (quote === '"' && c === esc && (next === '"' || next === esc)) word += command[++i];
+      else word += c;
+    } else if (c === "'" || c === '"') {
+      quote = c;
+      inWord = true;
+    } else if (c === esc) {
+      if (next === '\r' && command[i + 2] === '\n') i += 2;
+      else if (next === '\n') i++;
+      else if (next !== undefined) {
+        word += command[++i];
+        inWord = true;
+      }
+    } else if (c === '\n') {
+      endSegment();
+      for (const d of delims.splice(0)) i = heredocEnd(command, i + 1, d);
+    } else if (c === ';' || c === '|' || (c === '&' && next === '&')) {
+      endSegment();
+      if (c === '&') i++;
+    } else if (c === '<' || c === '>') {
+      if (/^[\d&*]*$/.test(word)) {
+        word = '';
+        inWord = false;
+      }
+      endWord();
+      if (command.startsWith('<<', i) && !command.startsWith('<<<', i)) {
+        i += command[i + 2] === '-' ? 2 : 1;
+        target = 'heredoc';
+        continue;
+      }
+      while ('<>'.includes(command[i + 1] ?? ' ')) i++;
+      if (command[i + 1] === '&' || command[i + 1] === '|') i++;
+      const fd = /^[\d-]+/.exec(command.slice(i + 1));
+      if (command[i] === '&' && fd) i += fd[0].length;
+      else target = 'redirect';
+    } else if (c === ' ' || c === '\t' || c === '\r') {
+      endWord();
+    } else {
+      word += c;
+      inWord = true;
+    }
+  }
+  endSegment();
+  return out;
+}
+
+const FILTER = /^(--include|-t$|--testNamePattern|--filter)/;
+
+function segmentReason(words, shell) {
+  let k = 0;
+  while (/^\w+=/.test(words[k] ?? '')) k++;
+  const t = words.slice(k);
+  const x = t[0] === 'npx' ? 1 : 0;
+  if (t[0] === 'dotnet' && t[1] === 'test') {
+    if (!t.some((w) => /^--(filter|list-tests)\b/.test(w))) return 'dotnet test without --filter runs the whole suite';
+  } else if (t[x] === 'ng' && t[x + 1] === 'test') {
+    if (!t.some((w) => /^--include\b/.test(w))) return 'ng test without --include runs the whole suite';
+  } else if (t[x] === 'vitest') {
+    const args = t.slice(x + 1);
+    const hasFile = args.some((a) => a !== 'run' && a !== 'watch' && !a.startsWith('-'));
+    if (!hasFile && !args.some((a) => a === '-t' || a.startsWith('--testNamePattern'))) return 'vitest without a file or -t filter runs the whole suite';
+  } else if (['npm', 'pnpm', 'yarn'].includes(t[0])) {
+    const s = t[1] === 'run' ? 2 : 1;
+    if (t[s] !== 'test') return null;
+    if (shell === 'powershell' && t[0] === 'npm') return 'PowerShell drops the "--" before npm script arguments, so the filter never arrives; use npx ng test --include=... or run it in Bash';
+    const rest = t.slice(s + 1);
+    const after = t[0] !== 'npm' ? rest : rest.includes('--') ? rest.slice(rest.indexOf('--') + 1) : [];
+    if (!after.some((a) => !a.startsWith('-') || FILTER.test(a))) return `${t[0]} test without a test filter runs the whole suite`;
+  }
+  return null;
+}
 
 export function unscopedTestReason(command, shell) {
-  const stripped = command.replace(/"([^"]*)"|'([^']*)'/g, (_, a, b) => ((a ?? b).startsWith('-') ? '-__q__' : '__q__'));
-  for (const raw of stripped.split(/&&|\|\||;|\||\r?\n/)) {
-    const seg = raw.trim();
-    if (DOTNET_TEST.test(seg)) {
-      if (!/--filter\b|--list-tests\b/.test(seg)) return 'dotnet test without --filter runs the whole suite';
-    } else if (NPM_TEST.test(seg) || NG_TEST.test(seg)) {
-      const pm = NPM_TEST.exec(seg);
-      if (shell === 'powershell' && NPM_ONLY.test(seg)) return 'PowerShell drops the "--" before npm script arguments, so the filter never arrives; use npx ng test --include=... or run it in Bash';
-      if (pm) {
-        const tail = pm[1] === 'npm' ? seg.split(/\s--(?:\s|$)/).slice(1).join(' ') : seg.slice(pm[0].length);
-        const after = tail.split(/\s+/).filter(Boolean);
-        const scoped = after.some((a) => !a.startsWith('-') || /^(--include|-t$|--testNamePattern|--filter)/.test(a));
-        if (!scoped) return `${pm[1]} test without a test filter runs the whole suite`;
-      } else if (!/--include\b/.test(seg)) return 'ng test without --include runs the whole suite';
-    } else if (VITEST.test(seg)) {
-      const args = seg.replace(VITEST, '').trim().split(/\s+/).filter(Boolean);
-      const hasFile = args.some((a) => a !== 'run' && a !== 'watch' && !a.startsWith('-'));
-      if (!hasFile && !args.some((a) => a === '-t' || a.startsWith('--testNamePattern'))) return 'vitest without a file or -t filter runs the whole suite';
-    }
+  for (const words of segments(command, shell)) {
+    const reason = segmentReason(words, shell);
+    if (reason) return reason;
   }
   return null;
 }

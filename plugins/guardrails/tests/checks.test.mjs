@@ -72,6 +72,12 @@ const guardCases = [
   ['pnpm test', 'bash', 'pnpm test without a test filter'],
   ['npm test -- "--watch=false"', 'bash', 'npm test without a test filter'],
   ['pnpm test "--watch=false"', 'bash', 'pnpm test without a test filter'],
+  ['npm test -- "--include=a.spec.ts"', 'bash', null],
+  ['npx ng test "--include=x"', 'bash', null],
+  ['cat <<EOF\nnpm test\nEOF', 'bash', null],
+  ["cat <<'EOF' > notes.txt\nnpm test\nEOF\ndotnet test x", 'bash', '--filter'],
+  ['echo "x; npm test"', 'bash', null],
+  ['npm test -- --watch=false 2>&1 | tail -5', 'bash', 'npm test without a test filter'],
 ];
 
 for (const [command, shell, expected] of guardCases) {
