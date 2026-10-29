@@ -7,9 +7,9 @@ A small Claude Code plugin marketplace. Each plugin is standalone, written in pl
 | Plugin | Version | Job | Config keys read |
 |---|---|---|---|
 | [guardrails](plugins/guardrails/README.md) | 0.2.0 | Secret check and comment gate (git pre-commit and Claude Code hooks), unscoped-test guard, scoped test runner | `secrets`, `comments`, `testGuard`, `tests`, `testLock` |
-| [review](plugins/review/README.md) | 0.1.0 | Proven code review: findings count only when a failing test proves them; evidence-pack PR body | `tests`, `rulesDir`, `areas`, `triggers`, `decisions`, `bugs` |
+| [review](plugins/review/README.md) | 0.2.0 | Proven code review: findings count only when a failing test proves them; evidence-pack PR body | `tests`, `rulesDir`, `areas`, `triggers`, `decisions`, `bugs` |
 | [spec-upkeep](plugins/spec-upkeep/README.md) | 0.1.0 | Reports stale paths, symbols, commands and links cited in project docs; the check-docs skill fixes them | `docDrift` |
-| [test-quality](plugins/test-quality/README.md) | 0.1.0 | Flags decorative new tests and maps acceptance criteria to tests (test-critic agent, check-tests and writing-tests skills) | `testQuality` |
+| [test-quality](plugins/test-quality/README.md) | 0.1.1 | Flags decorative new tests and maps acceptance criteria to tests (test-critic agent, check-tests and writing-tests skills) | `testQuality` |
 | [metrics](plugins/metrics/README.md) | 0.2.0 | Records one CSV row per merged PR: time to merge, review counts, token use | `metrics` |
 
 ## Install
