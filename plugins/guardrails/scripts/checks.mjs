@@ -51,9 +51,9 @@ export function readSettings(cfg) {
   return { patterns, allowPaths: strings(secrets.allowPaths, 'secrets.allowPaths'), hint: secrets.hint, extensions: extensions.map((e) => e.toLowerCase()) };
 }
 
-const ENV = '(?:\S+=\S*\s+)*';
+const ENV = String.raw`(?:\S+=\S*\s+)*`;
 const DOTNET_TEST = new RegExp(String.raw`^${ENV}dotnet\s+test\b`);
-const NPM_TEST = new RegExp(String.raw`^${ENV}(?:npm|pnpm|yarn)\s+(?:run\s+)?test\b`);
+const NPM_TEST = new RegExp(String.raw`^${ENV}(?:npm|pnpm|yarn)\s+(?:run\s+)?test(?=\s|$)`);
 const NG_TEST = new RegExp(String.raw`^${ENV}(?:npx\s+)?ng\s+test\b`);
 const VITEST = new RegExp(String.raw`^${ENV}(?:npx\s+)?vitest\b`);
 const NPM_ONLY = new RegExp(String.raw`^${ENV}npm\s`);
@@ -65,8 +65,13 @@ export function unscopedTestReason(command, shell) {
     if (DOTNET_TEST.test(seg)) {
       if (!/--filter\b|--list-tests\b/.test(seg)) return 'dotnet test without --filter runs the whole suite';
     } else if (NPM_TEST.test(seg) || NG_TEST.test(seg)) {
+      const npm = NPM_TEST.test(seg);
       if (shell === 'powershell' && NPM_ONLY.test(seg)) return 'PowerShell drops the "--" before npm script arguments, so the filter never arrives; use npx ng test --include=... or run it in Bash';
-      if (!/--include\b/.test(seg)) return 'ng/npm test without --include runs the whole suite';
+      if (npm) {
+        const after = seg.split(/\s--(?:\s|$)/).slice(1).join(' ').split(/\s+/).filter(Boolean);
+        const scoped = after.some((a) => !a.startsWith('-') || /^(--include|-t$|--testNamePattern|--filter)/.test(a));
+        if (!scoped) return 'npm test without a test filter runs the whole suite';
+      } else if (!/--include\b/.test(seg)) return 'ng test without --include runs the whole suite';
     } else if (VITEST.test(seg)) {
       const args = seg.replace(VITEST, '').trim().split(/\s+/).filter(Boolean);
       const hasFile = args.some((a) => a !== 'run' && a !== 'watch' && !a.startsWith('-'));

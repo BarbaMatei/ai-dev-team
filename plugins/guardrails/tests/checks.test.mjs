@@ -50,7 +50,7 @@ const guardCases = [
   ['dotnet test src/X.Tests', 'bash', '--filter'],
   ['dotnet test --list-tests', 'bash', null],
   ["npm test -- --watch=false --include='**/a*.spec.ts'", 'bash', null],
-  ['cd ui && npm test -- --watch=false', 'bash', '--include'],
+  ['cd ui && npm test -- --watch=false', 'bash', 'test filter'],
   ['npx ng test --watch=false --include="**/a*.spec.ts"', 'powershell', null],
   ['npm test -- --watch=false --include="**/a*.spec.ts"', 'powershell', 'PowerShell'],
   ['npx vitest run', 'bash', 'filter'],
@@ -58,6 +58,13 @@ const guardCases = [
   ['git commit -m "run dotnet test later"', 'bash', null],
   ['grep -rn "npm test" docs', 'bash', null],
   ['echo hi', 'bash', null],
+  ['CI=1 npm test', 'bash', 'npm test without'],
+  ['FOO=bar dotnet test x', 'bash', '--filter'],
+  ['npm test -- -t foo', 'bash', null],
+  ['npm test -- path/a.test.js', 'bash', null],
+  ['npm run test:e2e', 'bash', null],
+  ['npm test -- --watch=false', 'bash', 'npm test without a test filter'],
+  ['npx ng test --watch=false', 'bash', 'ng test without --include'],
 ];
 
 for (const [command, shell, expected] of guardCases) {
