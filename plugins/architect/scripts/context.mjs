@@ -48,7 +48,7 @@ function ghJson(gh, root, args) {
 }
 
 function settings(cfg) {
-  const a = cfg.architect ?? {};
+  const a = cfg.architect === undefined ? {} : cfg.architect;
   if (a === null || typeof a !== 'object' || Array.isArray(a)) fail('.claude/ai-dev-team.json: architect must be an object');
   if (a.specs !== undefined && !(Array.isArray(a.specs) && a.specs.every((s) => typeof s === 'string'))) {
     fail('.claude/ai-dev-team.json: architect.specs must be an array of strings');
@@ -114,13 +114,11 @@ function brief(root, cfg, args) {
 }
 
 const CITE = /^(.+?)(?::(\d+)(?:-(\d+))?)?$/;
-const pathLike = (p) => !/[<>*]/.test(p) && (p.includes('/') || /\.[A-Za-z0-9]+$/.test(p));
-
-function judgeCite(root, set, token) {
+function judgeCite(root, set, token, title) {
   const m = CITE.exec(token);
   const p = m[1].replace(/^\.\//, '');
-  if (!pathLike(p)) return null;
-  const cite = { text: token, path: p, isCode: !/\.(md|markdown)$/i.test(p) };
+  if (!p.includes('/') && !set.has(p)) return null;
+  const cite = { text: token, path: p, isCode: !/\.(md|markdown)$/i.test(p), title };
   if (!set.has(p)) return { ...cite, bad: 'not a tracked file' };
   const top = Math.max(Number(m[2] ?? 0), Number(m[3] ?? 0));
   if (m[2] !== undefined && (Number(m[2]) < 1 || Number(m[3] ?? m[2]) < Number(m[2]))) return { ...cite, bad: 'invalid line range' };
@@ -142,9 +140,9 @@ function checkFile(root, args) {
   for (const block of blocks) {
     const title = block.split(/\r?\n/, 1)[0].trim();
     const tokens = [...new Set([...block.matchAll(/`([^`\s]+)`/g)].map((m) => m[1]))];
-    const cites = tokens.map((t) => judgeCite(root, set, t)).filter(Boolean);
+    const cites = tokens.map((t) => judgeCite(root, set, t, title)).filter(Boolean);
     for (const c of cites) {
-      if (c.bad) problems.push(`bad ${c.text} — ${c.bad}`);
+      if (c.bad) problems.push(`bad ${c.text} — ${c.bad} (in "${c.title}")`);
       else ok++;
     }
     if (!cites.some((c) => c.isCode && !c.bad)) problems.push(`no-code-cite ${title}`);

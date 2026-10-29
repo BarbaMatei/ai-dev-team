@@ -24,7 +24,7 @@ node scripts/context.mjs check <proposals.md> [--gh <command>]
 ```
 
 - `brief` prints `## Area files`, `## Specs`, `## Code`, `## Open issues` and `## Open proposals`, each capped. If `gh` fails, the issue sections say `(gh unavailable)` and the exit code stays 0. An unknown `--area` exits 2 and lists the area names.
-- `check` prints `bad <cite> - <reason>` and `no-code-cite <title>` lines and exits 1, or prints `cites: ok (<n>)`. When `gh` is unavailable, issue numbers print `unchecked #<n>` and do not fail the check.
+- `check` prints `bad <cite> — <reason> (in "<block title>")` and `no-code-cite <title>` lines and exits 1, or prints `cites: ok (<n>)`. When `gh` is unavailable, issue numbers print `unchecked #<n>` and do not fail the check.
 - `--gh` is the command used for `gh`, split on spaces (double quotes group).
 
 ## Config

@@ -6,21 +6,6 @@ export function toPosix(p) {
   return p.replace(/\\/g, '/');
 }
 
-export function canonical(p) {
-  const tail = [];
-  let cur = p;
-  for (;;) {
-    try {
-      return path.join(fs.realpathSync.native(cur), ...tail.reverse());
-    } catch {
-      const up = path.dirname(cur);
-      if (up === cur) return p;
-      tail.push(path.basename(cur));
-      cur = up;
-    }
-  }
-}
-
 export function projectRoot(cwd) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
@@ -72,7 +57,7 @@ function closingBrace(glob, open) {
   return -1;
 }
 
-export function splitTop(body) {
+function splitTop(body) {
   const parts = [];
   let depth = 0;
   let cur = '';
@@ -89,7 +74,7 @@ export function splitTop(body) {
   return [...parts, cur];
 }
 
-export function globToRegExp(glob) {
+function globToRegExp(glob) {
   return new RegExp(`^${globSource(glob)}$`);
 }
 
@@ -107,7 +92,6 @@ export function loadAreas(root, cfg, warn = () => {}) {
   if (a !== undefined && (a === null || typeof a !== 'object' || Array.isArray(a) || !Object.values(a).every(isStrings))) {
     throw bad('areas must be an object of string arrays');
   }
-  if (cfg.triggers !== undefined && !isStrings(cfg.triggers)) throw bad('triggers must be an array of strings');
   const dirRel = toPosix(cfg.rulesDir ?? '.claude/rules').replace(/\/+$/, '');
   const dir = path.join(root, dirRel);
   const areas = [];

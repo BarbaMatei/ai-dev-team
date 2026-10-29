@@ -196,3 +196,36 @@ test('check judges each block on its own', () => {
   assert.match(r.out, /no-code-cite Bare/);
   assert.doesNotMatch(r.out, /no-code-cite Good/);
 });
+
+test('check tags each bad cite with its block title', () => {
+  const r = check('## First\n`src/x.ts:1`\n\n## Second\n`src/x.ts:1` `src/missing.ts`\n');
+  assert.equal(r.code, 1);
+  assert.match(r.out, /bad src\/missing\.ts — .* \(in "Second"\)/);
+});
+
+test('check ignores dotted names that are not paths', () => {
+  const r = check('## T\n`Orders.IdempotencyKey` `v1.2` `src/x.ts:1`\n');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /cites: ok \(1\)/);
+});
+
+test('check counts a tracked root file cite without a slash', () => {
+  const r = check('## T\n`README.md` `src/x.ts:1`\n', {}, { ...REPO, 'README.md': 'hi\n' });
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /cites: ok \(2\)/);
+});
+
+test('check flags an untracked path with a slash', () => {
+  const r = check('## T\n`src/missing.ts` `src/x.ts:1`\n');
+  assert.equal(r.code, 1);
+  assert.match(r.out, /bad src\/missing\.ts — /);
+});
+
+test('non-object architect config exits 2', () => {
+  for (const architect of [null, 5, ['x']]) {
+    const { dir, gh } = setup({ config: { architect } });
+    const r = run(dir, ['brief', 'x', '--gh', gh]);
+    assert.equal(r.code, 2, JSON.stringify(architect));
+    assert.match(r.err, /architect must be an object/);
+  }
+});

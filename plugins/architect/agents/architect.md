@@ -28,7 +28,7 @@ Only `## ` blocks, one per proposal, nothing before or after them. Each block ha
 ## <title, under 70 characters>
 - kind: feature | improvement | gap
 - why: <who gains what, one line>
-- evidence: <at least one code cite as `path:line`; add specs as `path`, issues as #<n>>
+- evidence: `src/app/orders.ts:42`, <more cites, each in backticks; specs as `path`; issues as #<n>>
 - smallest version: <S | M | L> - <what is in it>
 - specsmd route: <new intent | story in intent `<name>` | bolt-replan on unit `<name>`>
 - owner question: <one question only the owner can answer>

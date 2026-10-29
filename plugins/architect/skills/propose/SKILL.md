@@ -20,11 +20,11 @@ You turn one topic into a few evidence-checked proposals. A driver then takes a 
 
 ## Propose and check
 
-4. One Agent (`subagent_type: architect`, or `architect:architect` if that name is needed): "Brief: <tmp>/architect-brief.md. Topic: <topic>. Maximum: <n>." Save its reply to `<tmp>/architect-proposals.md`.
+4. One Agent (`subagent_type: architect:architect`): "Brief: <tmp>/architect-brief.md. Topic: <topic>. Maximum: <n>." Save its reply to `<tmp>/architect-proposals.md`.
 5. `node "<scripts>/context.mjs" check "<tmp>/architect-proposals.md"`.
    - `cites: ok` → continue.
-   - Exit 1 → send the `bad` and `no-code-cite` lines to the same agent once (SendMessage) and ask it to return all proposals again with the cites fixed from code it reads. Save the reply and check again.
-   - Blocks still failing → drop those blocks and count them. `unchecked #<n>` lines are not failures.
+   - Exit 1 → each `bad` line ends with `(in "<block title>")` and each `no-code-cite` line names its block. Send these lines to the same agent once (SendMessage) and ask it to return all proposals again with those blocks fixed from code it reads. Save the reply and check again.
+   - Blocks named by the lines that still fail → drop those blocks and count them. `unchecked #<n>` lines are not failures.
 6. No block survives → reply that nothing is proven for this topic and stop.
 
 ## Land the proposals
@@ -33,7 +33,7 @@ You turn one topic into a few evidence-checked proposals. A driver then takes a 
    1. `gh issue list --search "<title> in:title" --state open`. An open issue with the same title → note its number and skip.
    2. Write that block alone to `<tmp>/architect-issue.md`.
    3. `gh issue create --title "<title>" --label <architect.label> --body-file <that path>`.
-   If the label does not exist, create it once: `gh label create <label> --description "Architect proposal for specsmd inception"`.
+   Before the first issue, `gh label list --search <label> --json name`. If the exact name is absent, create it once: `gh label create <label> --description "Architect proposal for specsmd inception"`.
 8. `gh` missing or failing → keep all kept proposals in `<tmp>/architect-proposals.md`, and put the exact `gh issue create` command for each in the reply.
 
 ## Reply
