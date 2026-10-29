@@ -180,6 +180,16 @@ test('of prints every area a file belongs to, comma-separated, and "-" for none'
   assert.deepEqual(r.out.trim().split('\n'), ['src/pay/b.ts\tpay,pay2', 'src/other/c.ts\t-']);
 });
 
+test('of resolves absolute, ./ and subdirectory-relative paths against the project root and prints them as given', () => {
+  const dir = repo(files, cfg);
+  const abs = path.join(dir, 'src', 'pay', 'b.ts');
+  const r = run(dir, 'of', abs, './src/pay/b.ts');
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(r.out.trim().split(/\r?\n/), [`${abs}\tpay`, './src/pay/b.ts\tpay']);
+  const sub = runScript(script, path.join(dir, 'src', 'pay'), ['of', 'b.ts']);
+  assert.deepEqual(sub.out.trim().split(/\r?\n/), ['b.ts\tpay']);
+});
+
 test('of without a file prints usage and exits 2', () => {
   const r = run(repo(files, cfg), 'of');
   assert.equal(r.code, 2);

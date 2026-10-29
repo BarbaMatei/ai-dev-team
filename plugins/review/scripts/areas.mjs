@@ -68,9 +68,10 @@ function listFiles(root, areas, name) {
   for (const f of inArea(area, tracked(root))) process.stdout.write(`${f}\n`);
 }
 
-function of(areas, fileArgs) {
+function of(root, areas, fileArgs) {
   for (const f of fileArgs) {
-    const names = areas.filter((a) => matchesAny(toPosix(f), a.globs)).map((a) => a.name);
+    const rel = toPosix(path.relative(root, path.resolve(process.cwd(), f)));
+    const names = areas.filter((a) => matchesAny(rel, a.globs)).map((a) => a.name);
     process.stdout.write(`${f}\t${names.length ? names.join(',') : '-'}\n`);
   }
 }
@@ -131,5 +132,5 @@ try {
 }
 if (cmd === 'touched') touched(root, areas, cfg, args);
 else if (cmd === 'files') listFiles(root, areas, args[0]);
-else if (cmd === 'of') of(areas, args);
+else if (cmd === 'of') of(root, areas, args);
 else nearby(root, areas, args);
