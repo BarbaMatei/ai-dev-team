@@ -1,6 +1,6 @@
 {
   "name": "ai-dev-team",
-  "description": "Small standalone Claude Code plugins: guardrails, review, spec-upkeep, test-quality and metrics.",
+  "description": "Small standalone Claude Code plugins: guardrails, review, spec-upkeep, test-quality, metrics, e2e, ui-review and architect.",
   "owner": { "name": "Matei Barba" },
   "plugins": [
     {
@@ -27,6 +27,21 @@
       "name": "metrics",
       "source": "./plugins/metrics",
       "description": "Records one CSV row per merged PR with time to merge, review counts and token use from Claude Code session logs."
+    },
+    {
+      "name": "e2e",
+      "source": "./plugins/e2e",
+      "description": "Boots the app for browser work and takes screenshots of its pages with a headless Chromium browser; the capture skill returns the screenshots, the browser-test skill writes Playwright tests from story acceptance criteria."
+    },
+    {
+      "name": "ui-review",
+      "source": "./plugins/ui-review",
+      "description": "Reviews UI screenshots against a project's design tokens and UI rules: the ui-critic agent flags visible defects, a script checks every contrast claim, and findings go to a report and, if you choose, to issues."
+    },
+    {
+      "name": "architect",
+      "source": "./plugins/architect",
+      "description": "Proposes features, improvements and gaps from a project's code, specs and open issues. Every proposal's cites are checked by script, and the kept ones are filed as issues for specsmd inception. Never edits specs."
     }
   ]
 }
