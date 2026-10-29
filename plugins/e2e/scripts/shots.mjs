@@ -3,7 +3,6 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { loadE2e } from './lib/config.mjs';
 import { projectRoot } from './lib/project.mjs';
 
@@ -16,7 +15,7 @@ const isFile = (p) => {
   }
 };
 
-export function slugFor(route) {
+function slugFor(route) {
   let p = route;
   if (/^https?:\/\//.test(p)) p = new URL(p).pathname;
   p = p.split(/[?#]/)[0].toLowerCase();
@@ -109,4 +108,4 @@ function main() {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+main();

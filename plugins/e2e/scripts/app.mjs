@@ -131,7 +131,10 @@ async function up(root, cfg, st, paths) {
       await sleep(500);
       ready = await isReady(e.ready);
     }
-    if (!ready) await fail(`e2e: ${e.name} not ready after ${cfg.timeoutSec}s; last log lines:\n${logTail(log)}`);
+    if (!ready) {
+      const why = exited ? 'exited before ready' : `not ready after ${cfg.timeoutSec}s`;
+      await fail(`e2e: ${e.name} ${why}; last log lines:\n${logTail(log)}`);
+    }
     out(`ready ${e.name} ${e.ready}`);
   }
   out(`base ${cfg.baseUrl}`);

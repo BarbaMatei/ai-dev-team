@@ -58,7 +58,9 @@ import http from 'node:http';
 spawn(process.execPath, [process.argv[4], process.argv[3]], { stdio: 'ignore' });
 http.createServer((q, r) => r.end('ok')).listen(Number(process.argv[2]), '127.0.0.1');
 `,
-  'hang.mjs': `console.log('first-line');
+  'quit.mjs': `console.log('quit-line-marker');
+`,
+  'hang.mjs': `console.log('pid=' + process.pid);
 console.log('last-line-marker');
 setInterval(() => {}, 1000);
 `,
@@ -134,7 +136,32 @@ test('a timeout prints the log tail and stops what this call started', async () 
   assert.match(up.stderr, /e2e: b not ready after 2s; last log lines:/);
   assert.match(up.stderr, /last-line-marker/);
   assert.equal(await listens(pa), false);
+  const pid = Number(/pid=(\d+)/.exec(up.stderr)[1]);
+  assert.throws(() => process.kill(pid, 0), 'the hung process must be dead');
   assert.equal(run(dir, ['down']).stdout.trim(), 'e2e: nothing to stop');
+});
+
+test('a process that exits before it is ready stops the wait at once and shows its output', async () => {
+  const port = await freePort();
+  const dir = project({});
+  configure(dir, { baseUrl: url(port), timeoutSec: 30, boot: [{ name: 'q', command: cmd(dir, 'quit.mjs'), ready: url(port) }] });
+  const started = Date.now();
+  const up = run(dir, ['up']);
+  assert.equal(up.status, 1);
+  assert.ok(Date.now() - started < 15000, 'must not wait for timeoutSec');
+  assert.match(up.stderr, /e2e: q exited before ready; last log lines:/);
+  assert.match(up.stderr, /quit-line-marker/);
+});
+
+test('a boot entry whose working directory is missing logs the spawn error', async () => {
+  const port = await freePort();
+  const dir = project({});
+  const boot = [{ name: 'w', command: cmd(dir, 'quit.mjs'), cwd: 'no-such-dir', ready: url(port) }];
+  configure(dir, { baseUrl: url(port), timeoutSec: 30, boot });
+  const up = run(dir, ['up']);
+  assert.equal(up.status, 1);
+  assert.match(up.stderr, /exited before ready/);
+  assert.match(up.stderr, /ENOENT|no-such-dir/);
 });
 
 test('down kills the whole process tree', async () => {

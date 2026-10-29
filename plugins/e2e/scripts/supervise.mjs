@@ -5,4 +5,8 @@ import fs from 'node:fs';
 const [log, command, cwd] = process.argv.slice(2);
 const fd = fs.openSync(log, 'w');
 const child = spawn(command, { shell: true, windowsHide: true, cwd, stdio: ['ignore', fd, fd] });
+child.on('error', (e) => {
+  fs.writeSync(fd, `${e.message}\n`);
+  process.exit(1);
+});
 child.on('exit', (code) => process.exit(code ?? 1));
