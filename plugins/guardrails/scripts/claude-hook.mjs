@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot, loadConfig, matchesAny, toPosix } from './lib/project.mjs';
-import { findSecrets, isCommentLine, readSettings } from './checks.mjs';
+import { findSecrets, isCommentLine, readSettings, unscopedTestReason, testGuardEnabled } from './checks.mjs';
 
 const mode = process.argv[2];
 
@@ -37,6 +37,19 @@ process.stdin.on('end', () => {
   try {
     input = JSON.parse(raw);
   } catch {
+    return;
+  }
+  if (mode === 'tests') {
+    const command = input?.tool_input?.command;
+    if (typeof command !== 'string') return;
+    let cfg = {};
+    try {
+      cfg = loadConfig(projectRoot(typeof input.cwd === 'string' ? input.cwd : process.cwd()));
+    } catch {}
+    if (!testGuardEnabled(cfg)) return;
+    const reason = unscopedTestReason(command, input.tool_name === 'PowerShell' ? 'powershell' : 'bash');
+    if (reason) process.stderr.write(`[blocked] ${reason}
+`, () => process.exit(2));
     return;
   }
   const list = input && typeof input.tool_input?.file_path === 'string' ? edits(input.tool_name, input.tool_input) : null;

@@ -1,13 +1,14 @@
 # guardrails
 
-Three small checks that keep secrets and noise out of a project. Plain Node (>= 22), no dependencies. Config lives in `<project>/.claude/ai-dev-team.json`; see the [root README](../../README.md) for the full block. Every key is optional.
+Small checks that keep secrets, noise and whole-suite test runs out of a project. Plain Node (>= 22), no dependencies. Config lives in `<project>/.claude/ai-dev-team.json`; see the [root README](../../README.md) for the full block. Every key is optional.
 
-## The three pieces
+## The pieces
 
 | Piece | What it does | Config keys it reads |
 |---|---|---|
 | Git pre-commit | Blocks staged secrets; lists added comment lines | `secrets`, `comments` |
 | Claude Code hooks | Same two checks while Claude edits files | `secrets`, `comments` |
+| Claude Code `tests` hook | Blocks unscoped test commands before they run | `testGuard` |
 | `scoped-test` | Runs one scoped test command, prints only totals and failing names | `tests`, `testLock` |
 
 ## Git pre-commit hook
@@ -31,6 +32,10 @@ A matched secret is reported as `file:line`, never printed. Added comment lines 
 ## Claude Code hooks
 
 Installing the plugin registers them (`hooks/hooks.json`). Before a `Write`, `Edit` or `MultiEdit` the secret check can block the edit; after it, added comment lines are reported. A broken config falls back to defaults instead of blocking every edit.
+
+## Test guard
+
+Before a `Bash` or `PowerShell` call, the `tests` hook blocks a test command that would run the whole suite (each command in a chain is checked, quoted text ignored): `dotnet test` without `--filter`; `ng`/`npm test` without `--include`; `vitest` without a file or `-t`; and `npm test` in PowerShell, which drops the `--` so the filter never arrives (use `npx ng test --include=...` or Bash). `"testGuard": false` turns it off.
 
 ## scoped-test
 

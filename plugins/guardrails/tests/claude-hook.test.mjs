@@ -38,7 +38,7 @@ function run(mode, stdin) {
 }
 
 function call(dir, mode, tool_name, tool_input) {
-  const event = mode === 'secrets' ? 'PreToolUse' : 'PostToolUse';
+  const event = mode === 'comments' ? 'PostToolUse' : 'PreToolUse';
   return run(mode, { cwd: dir, hook_event_name: event, tool_name, tool_input });
 }
 
@@ -108,4 +108,32 @@ test('10 file_path spelled through a link to the repo still matches allowPaths',
   fs.symlinkSync(d, link, 'junction');
   const r = call(d, 'secrets', 'Write', { file_path: path.join(link, 'docs', 'a.md'), content: sk });
   assert.equal(r.code, 0);
+});
+
+test('11 tests: unscoped dotnet test in Bash blocks with a [blocked] reason', () => {
+  const d = repo();
+  const r = call(d, 'tests', 'Bash', { command: 'dotnet test x' });
+  assert.equal(r.code, 2);
+  assert.match(r.err, /^\[blocked\] dotnet test without --filter runs the whole suite/);
+});
+
+test('12 tests: PowerShell tool uses the powershell rules', () => {
+  const d = repo();
+  const r = call(d, 'tests', 'PowerShell', { command: 'npm test -- --include="a"' });
+  assert.equal(r.code, 2);
+  assert.match(r.err, /PowerShell drops the "--"/);
+  assert.equal(call(d, 'tests', 'Bash', { command: 'npm test -- --include="a"' }).code, 0);
+});
+
+test('13 tests: invalid JSON, no command and testGuard false do not block', () => {
+  const d = repo();
+  assert.equal(run('tests', 'not json').code, 0);
+  assert.equal(call(d, 'tests', 'Bash', {}).code, 0);
+  const off = repo({ testGuard: false });
+  assert.equal(call(off, 'tests', 'Bash', { command: 'dotnet test x' }).code, 0);
+});
+
+test('14 tests: a broken config still blocks', () => {
+  const bad = repo('{ nope');
+  assert.equal(call(bad, 'tests', 'Bash', { command: 'dotnet test x' }).code, 2);
 });

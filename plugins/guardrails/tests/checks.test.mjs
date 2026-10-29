@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_SECRET_PATTERNS, DEFAULT_COMMENT_EXTENSIONS, findSecrets, isCommentLine } from '../scripts/checks.mjs';
+import { DEFAULT_SECRET_PATTERNS, DEFAULT_COMMENT_EXTENSIONS, findSecrets, isCommentLine, unscopedTestReason } from '../scripts/checks.mjs';
 
 const a = (n) => 'a'.repeat(n);
 const samples = {
@@ -44,3 +44,26 @@ test('isCommentLine detects comments', () => {
 test('isCommentLine ignores URLs and unspaced slashes', () => {
   for (const l of ['var u = "http://x";', 'a //b', 'a// b', 'plain']) assert.equal(isCommentLine(l), false, l);
 });
+
+const guardCases = [
+  ['dotnet test src/X.Tests --filter "FullyQualifiedName~A"', 'bash', null],
+  ['dotnet test src/X.Tests', 'bash', '--filter'],
+  ['dotnet test --list-tests', 'bash', null],
+  ["npm test -- --watch=false --include='**/a*.spec.ts'", 'bash', null],
+  ['cd ui && npm test -- --watch=false', 'bash', '--include'],
+  ['npx ng test --watch=false --include="**/a*.spec.ts"', 'powershell', null],
+  ['npm test -- --watch=false --include="**/a*.spec.ts"', 'powershell', 'PowerShell'],
+  ['npx vitest run', 'bash', 'filter'],
+  ['npx vitest run src/a.spec.ts', 'bash', null],
+  ['git commit -m "run dotnet test later"', 'bash', null],
+  ['grep -rn "npm test" docs', 'bash', null],
+  ['echo hi', 'bash', null],
+];
+
+for (const [command, shell, expected] of guardCases) {
+  test(`unscopedTestReason: ${shell} ${command}`, () => {
+    const r = unscopedTestReason(command, shell);
+    if (expected === null) assert.equal(r, null);
+    else assert.ok(r?.includes(expected), String(r));
+  });
+}
