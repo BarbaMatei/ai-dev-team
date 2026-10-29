@@ -1,0 +1,23 @@
+import { loadConfig } from './project.mjs';
+
+const bad = (msg) => new Error(`.claude/ai-dev-team.json: e2e.${msg}`);
+const isStr = (v) => typeof v === 'string' && v !== '';
+
+export function loadE2e(root) {
+  const e = loadConfig(root).e2e ?? {};
+  if (e === null || typeof e !== 'object' || Array.isArray(e)) throw bad('must be an object');
+  for (const k of ['baseUrl', 'dir', 'command']) if (e[k] !== undefined && !isStr(e[k])) throw bad(`${k} must be a string`);
+  if (e.timeoutSec !== undefined && !(typeof e.timeoutSec === 'number' && e.timeoutSec > 0)) throw bad('timeoutSec must be a positive number');
+  const b = e.browser;
+  if (b !== undefined && !isStr(b) && !(Array.isArray(b) && b.length > 0 && b.every(isStr))) throw bad('browser must be a string or an array of strings');
+  const boot = e.boot ?? [];
+  if (!Array.isArray(boot)) throw bad('boot must be an array');
+  boot.forEach((x, i) => {
+    if (x === null || typeof x !== 'object' || Array.isArray(x)) throw bad(`boot[${i}] must be an object`);
+    if (!isStr(x.name)) throw bad(`boot[${i}].name must be a string`);
+    if (!isStr(x.ready) || !/^(https?|tcp):\/\//.test(x.ready)) throw bad(`boot[${i}].ready must be an http(s):// or tcp:// address`);
+    for (const k of ['command', 'cwd']) if (x[k] !== undefined && !isStr(x[k])) throw bad(`boot[${i}].${k} must be a string`);
+    if (x.env !== undefined && (x.env === null || typeof x.env !== 'object' || Array.isArray(x.env))) throw bad(`boot[${i}].env must be an object`);
+  });
+  return { ...e, boot, timeoutSec: e.timeoutSec ?? 120 };
+}
