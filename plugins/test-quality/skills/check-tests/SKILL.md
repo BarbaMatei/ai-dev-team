@@ -46,12 +46,15 @@ For each criterion, in order:
    shares words with it.
 2. None → Grep the project's existing test files for one that checks it and cite it.
 3. Still none → NONE.
+   Exception: a criterion about code structure that a compile error would catch (where a
+   name lives, that a type exists) → STRUCTURAL; never for behaviour.
 Reply with exactly one line per criterion, nothing else:
 COVERED <criterion file:line> — <test file:line> <test name>
 NONE <criterion file:line> — <criterion>
+STRUCTURAL <criterion file:line> — <what in the build enforces it>
 ```
 
-10. `<total>` = the criteria lines, `<covered>` = its `COVERED` lines. Coverage lines = `coverage: <covered>/<total>`, then its `NONE` lines.
+10. `<total>` = the criteria lines, `<covered>` = its `COVERED` lines, `<s>` = its `STRUCTURAL` lines. Coverage lines = `coverage: <covered+s>/<total> (<s> enforced by the compiler)`, then its `NONE` and `STRUCTURAL` lines.
 
 ## Reply
 
@@ -61,11 +64,12 @@ The critic lines, then the coverage lines, then the next step. At most 12 lines:
 DECORATIVE <file:line> <name> — <why> — fix: <what to assert instead>
 UNSURE <file:line> <name> — <why>
 checked: <n> · decorative: <k>
-coverage: <covered>/<total>
+coverage: <covered+structural>/<total> (<s> enforced by the compiler)
 NONE <criterion file:line> — <criterion>
+STRUCTURAL <criterion file:line> — <what in the build enforces it>
 Next: fix each DECORATIVE test to assert behaviour, add a test per NONE criterion, then run check-tests again.
 ```
 
 - `no new or changed tests` stands in for the critic lines when there were none; `coverage skipped: <reason>` for the coverage lines when there was no spec or no criteria.
-- Leave out the `Next:` line when there is no DECORATIVE and no NONE line.
+- Leave out the `Next:` line when there is no DECORATIVE and no NONE line; STRUCTURAL lines never trigger it.
 - More than 12 lines → write them all to `<tmp>/check-tests-<branch>.txt` and reply the `checked:` and `coverage` lines, the first DECORATIVE and NONE lines that fit, `full list: <that file's full path>` and the `Next:` line.

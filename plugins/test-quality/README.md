@@ -21,7 +21,8 @@ Test stage: once the bolt's code and tests pass, run `/test-quality:check-tests`
 ```
 DECORATIVE App.Tests/OrderTests.cs:14 Keeps_total — asserts the value it passed in — fix: call Order.Total() on two items and expect 30
 checked: 4 · decorative: 1
-coverage: 2/3
+coverage: 3/4 (1 enforced by the compiler)
+STRUCTURAL memory-bank/intents/i1/units/u1/stories/s1.md:7 — the constant lives in class Pricing: the build fails otherwise
 NONE memory-bank/intents/i1/units/u1/stories/s1.md:9 — Given an empty cart, Then checkout is refused
 Next: fix each DECORATIVE test to assert behaviour, add a test per NONE criterion, then run check-tests again.
 ```
@@ -35,7 +36,7 @@ node scripts/tests.mjs list|show [--base <ref>]
 node scripts/criteria.mjs <file>...
 ```
 
-- `tests.mjs list`: one `<file>:<line>\t<name>` per test the branch added or changed, then `<n> new or changed test(s) in <m> file(s)` or `no new or changed tests`. Committed, uncommitted and untracked changes all count.
+- `tests.mjs list`: one `<file>:<line>\t<name>` per test the branch added or changed, then `<n> new or changed test(s) in <m> file(s)` or `no new or changed tests`. Committed, uncommitted and untracked changes all count. A test counts only when its name is new in the file or its body differs from the base version ignoring whitespace.
 - `tests.mjs show`: per file `=== <file> (setup, lines 1-<k>)` and its setup lines, then per test `=== <file>:<line>-<end> <name>` and its lines.
 - Base: `--base <ref>` is diffed from its merge-base with HEAD; the default is the merge-base with `origin/HEAD`, else `main`.
 - Tests are found in JavaScript/TypeScript (`it`, `test`), C# (`[Fact]`, `[Theory]`, `[Test]`, `[TestMethod]` ...), Java/Kotlin (`@Test`), Python (`test_*`) and Go (`Test*`).

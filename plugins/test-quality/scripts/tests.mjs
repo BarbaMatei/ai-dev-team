@@ -52,6 +52,48 @@ export function changedTests(decls, addedLines, lineCount) {
     });
 }
 
+// Bracket-balanced end: an added helper between tests is not part of the test above.
+export function bodyEnd(lines, decl, limit, file) {
+  const ext = path.extname(file).toLowerCase();
+  if (ext === '.py') {
+    let end = decl.line;
+    for (let l = decl.line + 1; l <= limit; l++) {
+      if (lines[l - 1].trim() === '') continue;
+      if (!/^\s/.test(lines[l - 1])) break;
+      end = l;
+    }
+    return end;
+  }
+  const js = !['.cs', '.java', '.kt', '.go'].includes(ext);
+  let depth = 0;
+  let opened = false;
+  for (let l = decl.line; l <= limit; l++) {
+    for (const c of lines[l - 1]) {
+      if (c === '{' || (js && c === '(')) {
+        depth++;
+        opened = true;
+      } else if (c === '}' || (js && c === ')')) depth--;
+    }
+    if (opened && depth <= 0) return l;
+  }
+  return limit;
+}
+
+function bodyKey(lines, decls, i, file) {
+  const limit = i + 1 < decls.length ? decls[i + 1].line - 1 : lines.length;
+  const body = lines.slice(decls[i].line - 1, bodyEnd(lines, decls[i], limit, file)).join('');
+  return `${decls[i].name}\0${body.replace(/\s+/g, '')}`;
+}
+
+function baseKeys(root, base, file) {
+  const r = git(root, ['show', `${base}:${file}`]);
+  if (r.status !== 0) return new Set();
+  const lines = r.stdout.split(/\r?\n/);
+  if (lines[lines.length - 1] === '') lines.pop();
+  const decls = findTests(lines, file);
+  return new Set(decls.map((_, i) => bodyKey(lines, decls, i, file)));
+}
+
 function git(cwd, args) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
@@ -111,9 +153,10 @@ function collect(root, globs, base) {
     }
     const lines = text.split(/\r?\n/);
     if (lines[lines.length - 1] === '') lines.pop();
-    const all = added ?? new Set(lines.map((_, i) => i + 1));
     const decls = findTests(lines, file);
-    const tests = changedTests(decls, all, lines.length);
+    const all = added ?? new Set(lines.map((_, i) => i + 1));
+    const known = added ? baseKeys(root, base, file) : new Set();
+    const tests = changedTests(decls, all, lines.length).filter((t) => !known.has(bodyKey(lines, decls, decls.findIndex((d) => d.line === t.line), file)));
     if (tests.length) out.push({ file, lines, tests, firstLine: decls[0].line });
   }
   return out;

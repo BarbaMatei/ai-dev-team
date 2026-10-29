@@ -157,3 +157,36 @@ describe('tests.mjs fixes', () => {
     assert.match(run(dir, ['list']).out, /src\/a\.test\.ts:2\tadds two/);
   });
 });
+
+describe('tests.mjs whitespace-only edits', () => {
+  const SPEC = "describe('x', () => {\n  it('wrapped', () => {\n    expect(compute(1, 2, 3)).toBe(6);\n  });\n\n  it('edited', () => {\n    expect(a()).toBe(1);\n  });\n\n  it('untouched', () => {\n    expect(b()).toBe(2);\n  });\n});\n";
+  const lines = (dir) => run(dir, ['list']).out.trimEnd().split('\n');
+
+  it('lists a changed assertion but not a Prettier re-wrap', () => {
+    const dir = repo({ 'src/a.spec.ts': SPEC });
+    git(dir, ['checkout', '-q', '-b', 'feat']);
+    put(dir, 'src/a.spec.ts', SPEC.replace('expect(compute(1, 2, 3)).toBe(6);', 'expect(\n      compute(\n        1,\n        2,\n        3\n      )\n    ).toBe(6);').replace('toBe(1)', 'toBe(7)'));
+    assert.deepEqual(lines(dir), ['src/a.spec.ts:12\tedited', '1 new or changed test(s) in 1 file(s)']);
+  });
+
+  it('does not list a test next to an added helper', () => {
+    const dir = repo({ 'src/a.spec.ts': SPEC });
+    git(dir, ['checkout', '-q', '-b', 'feat']);
+    put(dir, 'src/a.spec.ts', SPEC.replace("  it('untouched'", "  function helper() {\n    return 1;\n  }\n\n  it('untouched'"));
+    assert.equal(lines(dir)[0], 'no new or changed tests');
+  });
+
+  it('lists every test of a spec file new on the branch', () => {
+    const dir = repo({ 'src/a.spec.ts': SPEC });
+    git(dir, ['checkout', '-q', '-b', 'feat']);
+    put(dir, 'src/n.spec.ts', SPEC);
+    assert.equal(lines(dir).length, 4);
+  });
+
+  it('lists a renamed test as new', () => {
+    const dir = repo({ 'src/a.spec.ts': SPEC });
+    git(dir, ['checkout', '-q', '-b', 'feat']);
+    put(dir, 'src/a.spec.ts', SPEC.replace("'untouched'", "'renamed'"));
+    assert.equal(lines(dir)[0], 'src/a.spec.ts:10\trenamed');
+  });
+});
