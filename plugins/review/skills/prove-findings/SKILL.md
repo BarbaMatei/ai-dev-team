@@ -21,8 +21,9 @@ A review finding survives only when a fresh subagent's test fails for the claime
 
 1. Drop as `style/doc/consider`: style, formatting, naming, comments, docs, refactors, and "consider"/"could"/"might" items that name no wrong behaviour.
 2. Drop as `missing-test`: claims that only say a test is missing.
-3. Merge duplicates (same place, same claim). Keep only claims of wrong behaviour: wrong result, crash, data loss, leak, race, security hole.
-4. Count each merged duplicate, and anything dropped that fits no bucket (e.g. a pure performance claim), as `style/doc/consider`.
+3. Drop as `by-design`: a claim whose "wrong behaviour" is what the spec or plan asks for. Keep one `BY-DESIGN <file:line> — <claim>` line each.
+4. Merge duplicates (same place, same claim). Keep only claims of wrong behaviour: wrong result, crash, data loss, leak, race, security hole.
+5. Count each merged duplicate, and anything dropped that fits no bucket (e.g. a pure performance claim), as `style/doc/consider`.
 
 ## Prove
 
@@ -54,12 +55,13 @@ Where: <file:line>
 
 ## Output
 
-Only these lines: every PROVEN line (most severe first, never dropped), then UNVERIFIED lines only while the whole output, `discarded:` line included, stays at most 10 lines, then the `discarded:` line. Each UNVERIFIED left out counts as `untestable`.
+Only these lines: every PROVEN line (most severe first, never dropped), then UNVERIFIED lines only while the whole output, `discarded:` line included, stays at most 10 lines, then BY-DESIGN lines under the same cap, then the `discarded:` line. Each UNVERIFIED left out counts as `untestable`.
 
 ```
 PROVEN <file:line> — <claim> — test <kind> <filter> — pattern <regex>
 UNVERIFIED <file:line> — <claim> — repro: <steps>
-discarded: <n> (<n> style/doc/consider, <n> missing-test, <n> disproven, <n> untestable)
+BY-DESIGN <file:line> — <claim>
+discarded: <n> (<n> style/doc/consider, <n> missing-test, <n> by-design, <n> disproven, <n> untestable)
 ```
 
 `<kind>` is the `tests` key used and `<filter>` exactly what replaced `{filter}`, so `mutate-check.mjs --kind <kind> --test <filter>` reuses them verbatim; `<regex>` is the prover's pattern; repro steps stay on one line. Always print the `discarded:` line, even when every count is 0.

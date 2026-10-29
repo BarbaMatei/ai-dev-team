@@ -172,3 +172,31 @@ test('a rule file with paths but no parsable globs warns once on stderr', () => 
   assert.equal(r.code, 0);
   assert.equal(r.err, 'review: .claude/rules/odd.md: paths present but no globs parsed\n');
 });
+
+test('of prints every area a file belongs to, comma-separated, and "-" for none', () => {
+  const dir = repo(files, { areas: { pay2: ['src/pay/*.ts'] } });
+  const r = run(dir, 'of', 'src/pay/b.ts', 'src/other/c.ts');
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(r.out.trim().split('\n'), ['src/pay/b.ts\tpay,pay2', 'src/other/c.ts\t-']);
+});
+
+test('of without a file prints usage and exits 2', () => {
+  const r = run(repo(files, cfg), 'of');
+  assert.equal(r.code, 2);
+  assert.match(r.err, /^review: usage: /);
+});
+
+test('nearby --max with more sites than the cap prints nothing and exits 3', () => {
+  const dir = repo(files, cfg);
+  const r = run(dir, 'nearby', '--pattern', 'Math\\.round\\(', '--max', '1');
+  assert.equal(r.code, 3);
+  assert.equal(r.out, '');
+  assert.equal(r.err, 'review: pattern matched 2 sites (max 1); narrow it\n');
+});
+
+test('nearby --max at or above the site count prints the sites as without it', () => {
+  const dir = repo(files, cfg);
+  const r = run(dir, 'nearby', '--pattern', 'Math\\.round\\(', '--max', '5');
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.out.trim().split('\n').length, 4);
+});

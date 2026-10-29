@@ -10,7 +10,7 @@ Proven code review for Claude Code: a review finding counts only when a failing 
 | `sweep-area` skill | Owner-started bug sweep of one area of the default branch; files proven bugs as issues | `areas`, `rulesDir`, `tests`, `bugs` |
 | `prove-findings` skill | Keeps only findings a fresh subagent's failing test proves | `tests`, `areas`, `rulesDir` |
 | `design-critic` agent | One adversarial pass over a design before coding a trigger-area change | `rulesDir` |
-| `areas.mjs` | Touched areas and trigger, files of an area, the same bug shape nearby | `rulesDir`, `areas`, `triggers` |
+| `areas.mjs` | Touched areas and trigger, files of an area, areas of a file, the same bug shape nearby | `rulesDir`, `areas`, `triggers` |
 | `decisions.mjs` | Matches a finding to past owner decisions | `decisions` |
 | `mutate-check.mjs` | Breaks one line, requires the test to fail, restores the file | `tests` |
 
@@ -39,12 +39,12 @@ The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchp
 ## Scripts
 
 ```
-node scripts/areas.mjs touched [--base <ref>] | files <area> | nearby --pattern <regex> [--base <ref>]
+node scripts/areas.mjs touched [--base <ref>] | files <area> | of <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]
 node scripts/decisions.mjs --path <file> --text "<finding>"
 node scripts/mutate-check.mjs --file <path> --line <n> [--replace <text>] --kind <tests key> --test <filter>
 ```
 
-For compiled languages set `tests.<kind>.buildError` (a regex of your compiler's error lines): without it a mutant that fails to compile reads as `GUARDED`, and mutate-check adds a `note:` line saying so.
+`of` prints `<file><TAB><area>,<area>` (`-` when none); `nearby --max <n>` prints nothing and exits 3 above `<n>` sites, so a too-broad pattern is narrowed. A claim that is what the spec asks for becomes `by-design` in prove-findings and lands under Risks. For compiled languages set `tests.<kind>.buildError` (a regex of your compiler's error lines): without it a mutant that fails to compile reads as `GUARDED`, and mutate-check adds a `note:` line saying so.
 
 review-bolt and sweep-area file proven bugs (with repro and the proving test) as GitHub issues; on a public repo those issues are public, so use a private repo, or a label your private tracker picks up, if that matters.
 

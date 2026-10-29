@@ -67,6 +67,14 @@ function listFiles(root, areas, name) {
   for (const f of inArea(area, tracked(root))) process.stdout.write(`${f}\n`);
 }
 
+function of(areas, fileArgs) {
+  for (const f of fileArgs) {
+    const names = areas.filter((a) => matchesAny(toPosix(f), a.globs)).map((a) => a.name);
+    process.stdout.write(`${f}	${names.length ? names.join(',') : '-'}
+`);
+  }
+}
+
 function nearby(root, areas, args) {
   const pattern = flag(args, '--pattern');
   if (pattern === undefined) fail('nearby needs --pattern <regex>');
@@ -96,6 +104,13 @@ function nearby(root, areas, args) {
       if (re.test(text)) groups[near.has(f) ? 'near' : 'other'].push(`${f}:${i + 1}: ${text.trim()}`);
     });
   }
+  const total = groups.near.length + groups.other.length;
+  const max = flag(args, '--max');
+  if (max !== undefined && total > Number(max)) {
+    process.stderr.write(`review: pattern matched ${total} sites (max ${max}); narrow it
+`);
+    process.exit(3);
+  }
   for (const [key, title] of [['near', 'in bolt area'], ['other', 'elsewhere']]) {
     process.stdout.write(`${title} (${groups[key].length}):\n`);
     for (const l of groups[key].slice(0, MAX_LINES)) process.stdout.write(`${l}\n`);
@@ -103,7 +118,7 @@ function nearby(root, areas, args) {
 }
 
 const [cmd, ...args] = process.argv.slice(2);
-if (!['touched', 'files', 'nearby'].includes(cmd) || (cmd === 'files' && !args[0])) fail('usage: areas.mjs touched [--base <ref>] | files <area> | nearby --pattern <regex> [--base <ref>]');
+if (!['touched', 'files', 'of', 'nearby'].includes(cmd) || ((cmd === 'files' || cmd === 'of') && !args[0])) fail('usage: areas.mjs touched [--base <ref>] | files <area> | of <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]');
 const root = projectRoot(process.cwd());
 let cfg;
 let areas;
@@ -115,4 +130,5 @@ try {
 }
 if (cmd === 'touched') touched(root, areas, cfg, args);
 else if (cmd === 'files') listFiles(root, areas, args[0]);
+else if (cmd === 'of') of(areas, args);
 else nearby(root, areas, args);

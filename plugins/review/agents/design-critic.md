@@ -1,6 +1,6 @@
 ---
 name: design-critic
-description: Use before coding a change whose areas are on the project's `triggers` list in .claude/ai-dev-team.json (check with the review plugin's `areas.mjs touched`; before any code exists, check whether a file the design names is listed by `areas.mjs files <area>` for a trigger area). One adversarial pass over the technical design that hunts races, duplicates, late events, partial failures, auth gaps, untrusted input and migration risks. Give it the design file path and the touched areas' rule files.
+description: Use before coding a change whose areas are on the project's `triggers` list in .claude/ai-dev-team.json (check with the review plugin's `areas.mjs touched`; before any code exists, check whether a file the design names is listed by `areas.mjs files <area>` for a trigger area). One adversarial pass over the technical design that hunts races, duplicates, late events, partial failures, auth gaps, untrusted input and migration risks. Give it the design file path (the technical design, or the implementation plan of a bolt without a design stage) and the touched areas' rule files.
 model: opus
 tools: Read, Grep, Glob
 ---

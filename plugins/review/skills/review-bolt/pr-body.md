@@ -8,9 +8,9 @@
 
 ## Requirements → tests
 
-| Requirement | Test |
-|---|---|
-| <one acceptance criterion, in plain words> | <test name and file; no test → "none" and an item under Needs owner> |
+| Requirement | Test | mutate-check |
+|---|---|---|
+| <one acceptance criterion, in plain words> | <test name and file; no test → "none" and an item under Needs owner> | <verdict from the Test stage; not run → "-"> |
 
 ## Review
 
@@ -21,6 +21,10 @@ Rounds: <1|2> · proven: <n> · discarded: <n> · unverified: <n>
 | <file:line — claim> | <file:line — the fix in a few words; not fixed → "Not fixed, see Needs owner"> | <test name and file> | <GUARDED, NOT GUARDED, the INVALID line, or not mutate-checkable> |
 
 <no fixes → "No proven findings." instead of the table>
+
+Tests changed by fixes: <each `UPDATED-TEST` line; none → "None.">
+
+Round-2 fixes are covered by their proving tests and are not re-reviewed.
 
 ## Same bug elsewhere (not fixed here)
 
@@ -41,6 +45,7 @@ Rounds: <1|2> · proven: <n> · discarded: <n> · unverified: <n>
 ## Risks
 
 - <what could still go wrong, in plain words; none known → "None known.">
+- <each `BY-DESIGN` item: file:line — claim; the spec or plan asks for it>
 
 ## Needs owner
 
