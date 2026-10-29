@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bodyEnd } from './lib/body.mjs';
 import { loadConfig, matchesAny, projectRoot, toPosix } from './lib/project.mjs';
 
 const DEFAULT_GLOBS = ['**/*.test.*', '**/*.spec.*', '**/*Tests.cs', '**/*Test.cs', '**/*Test.java', '**/*Tests.java', '**/*Test.kt', '**/test_*.py', '**/*_test.py', '**/*_test.go'];
@@ -50,33 +51,6 @@ export function changedTests(decls, addedLines, lineCount) {
       for (let l = d.line; l <= d.end; l++) if (addedLines.has(l)) return true;
       return false;
     });
-}
-
-// Bracket-balanced end: an added helper between tests is not part of the test above.
-export function bodyEnd(lines, decl, limit, file) {
-  const ext = path.extname(file).toLowerCase();
-  if (ext === '.py') {
-    let end = decl.line;
-    for (let l = decl.line + 1; l <= limit; l++) {
-      if (lines[l - 1].trim() === '') continue;
-      if (!/^\s/.test(lines[l - 1])) break;
-      end = l;
-    }
-    return end;
-  }
-  const js = !['.cs', '.java', '.kt', '.go'].includes(ext);
-  let depth = 0;
-  let opened = false;
-  for (let l = decl.line; l <= limit; l++) {
-    for (const c of lines[l - 1]) {
-      if (c === '{' || (js && c === '(')) {
-        depth++;
-        opened = true;
-      } else if (c === '}' || (js && c === ')')) depth--;
-    }
-    if (opened && depth <= 0) return l;
-  }
-  return limit;
 }
 
 function bodyKey(lines, decls, i, file) {
@@ -156,7 +130,8 @@ function collect(root, globs, base) {
     const decls = findTests(lines, file);
     const all = added ?? new Set(lines.map((_, i) => i + 1));
     const known = added ? baseKeys(root, base, file) : new Set();
-    const tests = changedTests(decls, all, lines.length).filter((t) => !known.has(bodyKey(lines, decls, decls.findIndex((d) => d.line === t.line), file)));
+    const idx = new Map(decls.map((d, i) => [d.line, i]));
+    const tests = changedTests(decls, all, lines.length).filter((t) => !known.has(bodyKey(lines, decls, idx.get(t.line), file)));
     if (tests.length) out.push({ file, lines, tests, firstLine: decls[0].line });
   }
   return out;

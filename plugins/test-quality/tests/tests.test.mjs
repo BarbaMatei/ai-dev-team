@@ -190,3 +190,14 @@ describe('tests.mjs whitespace-only edits', () => {
     assert.equal(lines(dir)[0], 'src/a.spec.ts:10\trenamed');
   });
 });
+
+describe('tests.mjs brackets in strings and comments', () => {
+  const T = (n) => `it('q', () => {\n  const a = ')'; const b = '}'; // )\n  /* } */\n  expect(x).toBe(${n});\n});\n`;
+
+  it('still lists a changed assertion after bracket literals', () => {
+    const dir = repo({ 'src/q.spec.ts': T(2) });
+    git(dir, ['checkout', '-q', '-b', 'feat']);
+    put(dir, 'src/q.spec.ts', T(3));
+    assert.equal(run(dir, ['list']).out.split('\n')[0], 'src/q.spec.ts:1\tq');
+  });
+});
