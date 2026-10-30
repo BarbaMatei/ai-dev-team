@@ -7,12 +7,21 @@ const udd = process.argv.find((a) => a.startsWith('--user-data-dir='))?.slice('-
 const log = process.env.FAKE_CDP_LOG;
 const mode = process.env.FAKE_CDP_MODE ?? '';
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+if (log) fs.writeFileSync(`${log}.pid`, String(process.pid));
 
 if (mode === 'nostart') setInterval(() => {}, 1000);
 else {
   const frame = (obj) => {
     const p = Buffer.from(JSON.stringify(obj));
-    const head = p.length < 126 ? Buffer.from([0x81, p.length]) : Buffer.from([0x81, 126, p.length >> 8, p.length & 255]);
+    let head;
+    if (p.length < 126) head = Buffer.from([0x81, p.length]);
+    else if (p.length < 65536) head = Buffer.from([0x81, 126, p.length >> 8, p.length & 255]);
+    else {
+      head = Buffer.alloc(10);
+      head[0] = 0x81;
+      head[1] = 127;
+      head.writeBigUInt64BE(BigInt(p.length), 2);
+    }
     return Buffer.concat([head, p]);
   };
 
@@ -43,23 +52,34 @@ else {
     socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${key}\r\n\r\n`);
     let pending = Buffer.alloc(0);
     const send = (o) => socket.write(frame(o));
+    socket.on('error', () => {});
     socket.on('data', (d) => {
       let msgs;
       [msgs, pending] = parse(Buffer.concat([pending, d]));
       for (const { op, data } of msgs) {
         if (op !== 1) continue;
         const { id, method, params = {}, sessionId } = JSON.parse(data.toString());
-        fs.appendFileSync(log, JSON.stringify({ method, params }) + '\n');
+        fs.appendFileSync(log, JSON.stringify({ method, params, sessionId }) + '\n');
         const reply = (result = {}) => send({ id, result, ...(sessionId && { sessionId }) });
-        if (method === 'Target.createTarget') reply({ targetId: 'T1' });
-        else if (method === 'Target.attachToTarget') reply({ sessionId: 'S1' });
-        else if (method === 'Page.navigate') {
+        const err = (message) => send({ id, error: { code: -32000, message }, ...(sessionId && { sessionId }) });
+        if (/^(Page|Network|Emulation)\./.test(method) && !sessionId) err(`${method} needs a sessionId`);
+        else if (method === 'Target.createTarget') reply({ targetId: 'T1' });
+        else if (method === 'Target.attachToTarget') {
+          if (params.flatten !== true) err('attachToTarget needs flatten: true');
+          else reply({ sessionId: 'S1' });
+        } else if (method === 'Page.navigate') {
+          if (mode === 'drop') return socket.destroy();
+          if (mode === 'navfail') return reply({ frameId: 'F1', errorText: 'net::ERR_CONNECTION_REFUSED' });
           reply({ frameId: 'F1' });
-          send({ method: 'Page.loadEventFired', params: { timestamp: 1 }, sessionId });
+          if (mode === 'eventsource') send({ method: 'Network.requestWillBeSent', params: { requestId: 'ES1', type: 'EventSource' }, sessionId });
+          if (mode !== 'hang') send({ method: 'Page.loadEventFired', params: { timestamp: 1 }, sessionId });
         } else if (method === 'Page.captureScreenshot') {
-          if (mode === 'shoterror') send({ id, error: { code: -32000, message: 'Unable to capture screenshot' }, sessionId });
+          if (mode === 'shoterror') err('Unable to capture screenshot');
+          else if (mode === 'emptyshot') reply({ data: '' });
+          else if (mode === 'bigshot') reply({ data: Buffer.concat([Buffer.from(PNG, 'base64'), Buffer.alloc(70000)]).toString('base64') });
           else reply({ data: PNG });
         } else if (method === 'Browser.close') {
+          if (mode === 'noclose') return;
           reply();
           setTimeout(() => process.exit(0), 20);
         } else reply();

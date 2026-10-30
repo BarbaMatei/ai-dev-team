@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -97,14 +97,91 @@ test('a browser that never opens the debugging port exits 1 quickly', () => {
   const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: 'nostart', E2E_START_TIMEOUT_MS: '700' });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /e2e: browser did not start/);
-  assert.ok(Date.now() - t < 20000);
+  assert.ok(Date.now() - t < 10000);
 });
 
-test('a screenshot error exits 1 naming the url', () => {
+test('a route with a Windows backslash path exits 2 before any browser runs', () => {
+  const { dir, log, out, env } = setup();
+  const r = run(dir, [out, 'C:\\Program Files\\Git\\prices', '--viewports', '390x844'], env);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /MSYS_NO_PATHCONV=1/);
+  assert.equal(fs.existsSync(log), false);
+});
+
+for (const [mode, name] of [
+  ['shoterror', 'a screenshot error'],
+  ['navfail', 'a navigation error'],
+  ['emptyshot', 'an empty screenshot'],
+]) {
+  test(`${name} exits 1 naming the url`, () => {
+    const { dir, out, env } = setup();
+    const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: mode });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /e2e: no screenshot for http:\/\/localhost:4200\/x/);
+    assert.deepEqual(fs.existsSync(out) ? fs.readdirSync(out) : [], []);
+  });
+}
+
+test('a connection that drops while waiting for the load event fails the shot at once', () => {
   const { dir, out, env } = setup();
-  const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: 'shoterror' });
+  const t = Date.now();
+  const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: 'drop' });
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /e2e: no screenshot for http:\/\/localhost:4200\/x/);
+  assert.match(r.stderr, /e2e: no screenshot for/);
+  assert.ok(Date.now() - t < 15000);
+});
+
+test('page commands carry the session id and the target is attached flat', () => {
+  const { dir, log, out, env } = setup();
+  const r = run(dir, [out, '/', '--viewports', '390x844'], env);
+  assert.equal(r.status, 0, r.stderr);
+  const c = calls(log);
+  for (const m of ['Page.navigate', 'Emulation.setDeviceMetricsOverride', 'Page.captureScreenshot', 'Page.enable', 'Network.enable']) {
+    assert.equal(c.find((x) => x.method === m)?.sessionId, 'S1', m);
+  }
+  assert.equal(c.find((x) => x.method === 'Target.attachToTarget').params.flatten, true);
+});
+
+test('a screenshot larger than 65535 bytes is written whole', () => {
+  const { dir, out, env } = setup();
+  const r = run(dir, [out, '/', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: 'bigshot' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(fs.statSync(path.join(out, 'root@390x844.png')).size > 65535);
+});
+
+test('a page with a never-ending EventSource does not make the shot wait the full --wait', () => {
+  const { dir, out, env } = setup();
+  const t = Date.now();
+  const r = run(dir, [out, '/', '--viewports', '390x844', '--wait', '8000'], { ...env, FAKE_CDP_MODE: 'eventsource' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(Date.now() - t < 5000, `took ${Date.now() - t} ms`);
+});
+
+test('a browser that ignores Browser.close is killed and its profile removed', () => {
+  const { dir, log, out, env } = setup();
+  const tmp = path.join(dir, 'tmp');
+  fs.mkdirSync(tmp);
+  const t = Date.now();
+  const r = run(dir, [out, '/', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: 'noclose', TEMP: tmp, TMP: tmp, TMPDIR: tmp });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(Date.now() - t < 15000);
+  const pid = Number(fs.readFileSync(`${log}.pid`, 'utf8'));
+  assert.throws(() => process.kill(pid, 0));
+  assert.deepEqual(fs.readdirSync(tmp), []);
+});
+
+test('SIGTERM during a shot closes the browser, removes the profile and exits 143', async (t) => {
+  if (process.platform === 'win32') return t.skip('Windows cannot deliver SIGTERM to a handler');
+  const { dir, log, out, env } = setup();
+  const tmp = path.join(dir, 'tmp');
+  fs.mkdirSync(tmp);
+  const child = spawn(process.execPath, [script, out, '/', '--viewports', '390x844'], { cwd: dir, env: { ...process.env, ...env, FAKE_CDP_MODE: 'hang', TMPDIR: tmp }, stdio: 'ignore' });
+  const done = new Promise((res) => child.on('exit', (code) => res(code)));
+  for (let i = 0; i < 100 && !(fs.existsSync(log) && fs.readFileSync(log, 'utf8').includes('Page.navigate')); i++) await new Promise((r) => setTimeout(r, 100));
+  child.kill('SIGTERM');
+  assert.equal(await done, 143);
+  assert.throws(() => process.kill(Number(fs.readFileSync(`${log}.pid`, 'utf8')), 0));
+  assert.deepEqual(fs.readdirSync(tmp), []);
 });
 
 test('a configured browser that does not exist exits 2', () => {

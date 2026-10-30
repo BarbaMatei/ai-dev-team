@@ -19,6 +19,7 @@ export function connect(url) {
       for (const h of [...handlers]) h(msg.method, msg.params ?? {}, msg.sessionId);
     }
   });
+  const closed = new Promise((r) => ws.addEventListener('close', r, { once: true }));
   ws.addEventListener('close', () => fail(new Error('connection closed')));
   return new Promise((resolve, reject) => {
     ws.addEventListener('error', () => reject(new Error('connection failed')), { once: true });
@@ -36,6 +37,7 @@ export function connect(url) {
             handlers.push(fn);
             return () => handlers.splice(handlers.indexOf(fn), 1);
           },
+          closed,
           close: () => ws.close(),
         }),
       { once: true },
