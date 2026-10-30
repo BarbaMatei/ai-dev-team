@@ -39,12 +39,12 @@ The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchp
 ## Scripts
 
 ```
-node scripts/areas.mjs touched [--base <ref>] | files <area> | of <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]
+node scripts/areas.mjs touched [--base <ref>] | files <area> | of <file>... | rules <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]
 node scripts/decisions.mjs --path <file> --text "<finding>"
 node scripts/mutate-check.mjs --file <path> --line <n> [--replace <text>] --kind <tests key> --test <filter>
 ```
 
-`of` prints `<file><TAB><area>,<area>` (`-` when none); `nearby --max <n>` prints nothing and exits 3 above `<n>` sites, so a too-broad pattern is narrowed. A claim that is what the spec asks for becomes `by-design` in prove-findings and lands under Risks. For compiled languages set `tests.<kind>.buildError` (a regex of your compiler's error lines): without it a mutant that fails to compile reads as `GUARDED`, and mutate-check adds a `note:` line saying so.
+`of` prints `<file><TAB><area>,<area>` (`-` when none); `rules` prints `<rule file><TAB><file>` for each rule file whose area holds the file; `nearby --max <n>` prints nothing and exits 3 above `<n>` sites, so a too-broad pattern is narrowed. A claim that is what the spec asks for becomes `by-design` in prove-findings and lands under Risks. For compiled languages set `tests.<kind>.buildError` (a regex of your compiler's error lines): without it a mutant that fails to compile reads as `GUARDED`, and mutate-check adds a `note:` line saying so.
 
 review-bolt and sweep-area file proven bugs (with repro and the proving test) as GitHub issues; on a public repo those issues are public, so use a private repo, or a label your private tracker picks up, if that matters.
 

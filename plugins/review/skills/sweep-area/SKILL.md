@@ -24,7 +24,7 @@ You hunt bugs in one area of the default branch and file what survives proving a
 ## Sweep, per batch of at most 20 files
 
 6. Invoke `code-review` with args `high <the batch's paths, space-separated>`.
-7. `<rulesDir>/<area>.md` exists → one Agent (`subagent_type: general-purpose`, `model: haiku`): "Read <rule file>, then these files: <batch paths>. For each line that breaks the rule print `<file:line> — <what breaks> (rule: <rule file>)`. Print `none` if none. Nothing else." Add its lines to the findings: with no diff, `prove-findings` has no rule files to check.
+7. `node "<scripts>/areas.mjs" rules <the batch's paths>` → `<rule file><TAB><file>` pairs. Any pairs → one Agent (`subagent_type: general-purpose`, `model: haiku`): "For each rule file below, read it, then read only the files listed under it. For each line that breaks that rule print `<file:line> — <what breaks> (rule: <rule file>)`. Print `none` if none. Nothing else." followed by one line per rule file, `<rule file>: <its files>`. Add its lines to the findings: with no diff, `prove-findings` has no rule files to check.
 8. Invoke `review:prove-findings` with args `base HEAD; area sweep of the default branch, no diff`.
 9. For each PROVEN and UNVERIFIED line:
    1. `gh issue list --search "<basename> in:body" --state open`. An open issue about the same bug → note its number and skip.

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { canonical, loadConfig, loadAreas, matchesAny, projectRoot, toPosix } from './lib/project.mjs';
 
-const USAGE = 'usage: areas.mjs touched [--base <ref>] | files <area> | of <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]';
+const USAGE = 'usage: areas.mjs touched [--base <ref>] | files <area> | of <file>... | rules <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]';
 const MAX_LINES = 30;
 const MAX_BYTES = 1024 * 1024;
 
@@ -68,11 +68,20 @@ function listFiles(root, areas, name) {
   for (const f of inArea(area, tracked(root))) process.stdout.write(`${f}\n`);
 }
 
+const relOf = (root, f) => toPosix(path.relative(canonical(root), canonical(path.resolve(process.cwd(), f))));
+
 function of(root, areas, fileArgs) {
   for (const f of fileArgs) {
-    const rel = toPosix(path.relative(canonical(root), canonical(path.resolve(process.cwd(), f))));
+    const rel = relOf(root, f);
     const names = areas.filter((a) => matchesAny(rel, a.globs)).map((a) => a.name);
     process.stdout.write(`${f}\t${names.length ? names.join(',') : '-'}\n`);
+  }
+}
+
+function rules(root, areas, fileArgs) {
+  for (const f of fileArgs) {
+    const rel = relOf(root, f);
+    for (const a of areas) if (a.ruleFile && matchesAny(rel, a.globs)) process.stdout.write(`${a.ruleFile}\t${f}\n`);
   }
 }
 
@@ -120,7 +129,7 @@ function nearby(root, areas, args) {
 }
 
 const [cmd, ...args] = process.argv.slice(2);
-if (!['touched', 'files', 'of', 'nearby'].includes(cmd) || ((cmd === 'files' || cmd === 'of') && !args[0])) fail(USAGE);
+if (!['touched', 'files', 'of', 'rules', 'nearby'].includes(cmd) || ((cmd === 'files' || cmd === 'of' || cmd === 'rules') && !args[0])) fail(USAGE);
 const root = projectRoot(process.cwd());
 let cfg;
 let areas;
@@ -133,4 +142,5 @@ try {
 if (cmd === 'touched') touched(root, areas, cfg, args);
 else if (cmd === 'files') listFiles(root, areas, args[0]);
 else if (cmd === 'of') of(root, areas, args);
+else if (cmd === 'rules') rules(root, areas, args);
 else nearby(root, areas, args);

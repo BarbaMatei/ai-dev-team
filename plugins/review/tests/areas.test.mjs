@@ -260,3 +260,20 @@ test('touched ignores a change to an excluded file', () => {
   put(dir, 'src/web/a.spec.ts', 'changed\n');
   assert.equal(run(dir, 'touched').out.trim(), 'trigger: no');
 });
+
+test('rules maps a file to every rule file whose area holds it', () => {
+  const dir = repo({ ...files, '.claude/rules/money.md': '---\npaths:\n  - "src/pay/b.ts"\n---\n# Money\n' }, cfg);
+  const r = run(dir, 'rules', 'src/pay/b.ts', 'src/auth/seed.ts', 'src/pay/dir with space/d.ts');
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(r.out.trim().split('\n').sort(), [
+    '.claude/rules/money.md\tsrc/pay/b.ts',
+    '.claude/rules/pay.md\tsrc/pay/b.ts',
+    '.claude/rules/pay.md\tsrc/pay/dir with space/d.ts',
+  ]);
+});
+
+test('rules without a file prints usage and exits 2', () => {
+  const r = run(repo(files, cfg), 'rules');
+  assert.equal(r.code, 2);
+  assert.match(r.err, /^review: usage: /);
+});
