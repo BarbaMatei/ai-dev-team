@@ -1,6 +1,6 @@
 {
   "name": "architect",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Proposes features, improvements and gaps from a project's code, specs and open issues. Every proposal's cites are checked by script, and the kept ones are filed as issues for specsmd inception. Never edits specs.",
   "author": { "name": "Matei Barba" },
   "license": "MIT",
