@@ -11,7 +11,7 @@ A small Claude Code plugin marketplace. Each plugin is standalone, written in pl
 | [spec-upkeep](plugins/spec-upkeep/README.md) | 0.1.0 | Reports stale paths, symbols, commands and links cited in project docs; the check-docs skill fixes them | `docDrift` |
 | [test-quality](plugins/test-quality/README.md) | 0.1.1 | Flags decorative new tests and maps acceptance criteria to tests (test-critic agent, check-tests and writing-tests skills) | `testQuality` |
 | [metrics](plugins/metrics/README.md) | 0.2.0 | Records one CSV row per merged PR: time to merge, review counts, token use | `metrics` |
-| [e2e](plugins/e2e/README.md) | 0.1.0 | Boots the app and takes page screenshots with a headless browser; writes Playwright tests from story acceptance criteria | `e2e` |
+| [e2e](plugins/e2e/README.md) | 0.1.1 | Boots the app and takes page screenshots with a headless browser; writes Playwright tests from story acceptance criteria | `e2e` |
 | [ui-review](plugins/ui-review/README.md) | 0.1.0 | Reviews screenshots against design tokens and UI rules; a script checks every contrast claim | `uiReview` |
 | [architect](plugins/architect/README.md) | 0.1.0 | Proposes features, improvements and gaps from code, specs and open issues; a script checks every cite | `architect`, `rulesDir`, `areas` |
 

@@ -81,6 +81,16 @@ test('a full http(s) route is used as is', () => {
   assert.ok(JSON.parse(fs.readFileSync(log, 'utf8').trim()).includes('https://example.test/x?y=2'));
 });
 
+test('a route Git Bash rewrote into a Windows path exits 2 before any browser runs', () => {
+  const { dir, log, out } = setup();
+  const r = run(dir, [out, 'C:/Program Files/Git/prices', '--viewports', '390x844']);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /MSYS_NO_PATHCONV=1/);
+  assert.equal(r.stderr.trim().split(/\r?\n/).length, 1, r.stderr);
+  assert.equal(fs.existsSync(log), false);
+  assert.deepEqual(fs.existsSync(out) ? fs.readdirSync(out).filter((f) => f.endsWith('.png')) : [], []);
+});
+
 test('a browser that writes nothing exits 1', () => {
   const { dir, out } = setup(false);
   const r = run(dir, [out, '/x', '--viewports', '390x844']);

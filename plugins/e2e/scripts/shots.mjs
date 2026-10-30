@@ -87,6 +87,10 @@ function shoot(browser, url, file, [w, h], wait) {
 function main() {
   try {
     const { outDir, routes, sizes, wait } = parseArgs(process.argv.slice(2));
+    const rewritten = routes.find((r) => /^[A-Za-z]:[\\/]/.test(r));
+    if (rewritten !== undefined) {
+      throw Object.assign(new Error(`e2e: route "${rewritten}" looks like a path Git Bash rewrote; run with MSYS_NO_PATHCONV=1 or pass a full http(s):// address`), { code: 2 });
+    }
     const cfg = loadE2e(projectRoot(process.cwd()));
     const browser = findBrowser(cfg);
     fs.mkdirSync(outDir, { recursive: true });
