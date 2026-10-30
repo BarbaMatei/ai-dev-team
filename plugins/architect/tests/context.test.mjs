@@ -118,6 +118,17 @@ test('--area lists the files of a rule file paths glob with line total', () => {
   assert.match(s, /total: 2 files, 4 lines/);
 });
 
+test('--area leaves out files a ! glob excludes', () => {
+  const { dir, gh } = setup({
+    config: { areas: { shop: ['src/shop/**', '!**/*.spec.ts'] } },
+    files: { 'src/shop/a.ts': '1\n2\n', 'src/shop/a.spec.ts': '1\n' },
+  });
+  const s = section(run(dir, ['brief', 'x', '--area', 'shop', '--gh', gh]).out, 'Area files');
+  assert.match(s, /src\/shop\/a\.ts 2/);
+  assert.doesNotMatch(s, /a\.spec\.ts/);
+  assert.match(s, /total: 1 files, 2 lines/);
+});
+
 test('unknown --area exits 2 and lists area names', () => {
   const { dir, gh } = setup({ config: { areas: { shop: ['src/**'], ship: ['lib/**'] } } });
   const r = run(dir, ['brief', 'x', '--area', 'nope', '--gh', gh]);

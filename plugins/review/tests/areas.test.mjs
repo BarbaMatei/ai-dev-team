@@ -234,3 +234,29 @@ test('nearby --max must be a positive integer', () => {
     assert.match(r.err, /^review: usage: /);
   }
 });
+
+const excl = { areas: { web: ['src/web/**', '!**/*.spec.ts'], none: ['!src/**'] } };
+const exclFiles = { 'src/web/a.ts': 'a\n', 'src/web/a.spec.ts': 's\n' };
+
+test('files leaves out files a ! glob excludes', () => {
+  const r = run(repo(exclFiles, excl), 'files', 'web');
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(r.out.trim().split('\n'), ['src/web/a.ts']);
+});
+
+test('of reports no area for an excluded file', () => {
+  const r = run(repo(exclFiles, excl), 'of', 'src/web/a.spec.ts');
+  assert.equal(r.out.trim(), 'src/web/a.spec.ts\t-');
+});
+
+test('an area of only ! globs holds nothing', () => {
+  const r = run(repo(exclFiles, excl), 'files', 'none');
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.out, '');
+});
+
+test('touched ignores a change to an excluded file', () => {
+  const dir = repo(exclFiles, excl);
+  put(dir, 'src/web/a.spec.ts', 'changed\n');
+  assert.equal(run(dir, 'touched').out.trim(), 'trigger: no');
+});

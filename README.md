@@ -45,7 +45,7 @@ Every key is optional. Put it in `<project>/.claude/ai-dev-team.json`. A missing
 }
 ```
 
-Each plugin's README says what its keys do. `format` is `dotnet` or `vitest` (anything else prints the raw tail). An area is a rule file in `rulesDir` with its `paths:` globs, plus each `areas` entry; `triggers` names the areas that get the extra design and security passes. Globs: `**` any depth, `*` inside one path segment, `?` one character; paths are `/`-separated and repo-relative.
+Each plugin's README says what its keys do. `format` is `dotnet` or `vitest` (anything else prints the raw tail). An area is a rule file in `rulesDir` with its `paths:` globs, plus each `areas` entry; `triggers` names the areas that get the extra design and security passes. Globs: `**` any depth, `*` inside one path segment, `?` one character; paths are `/`-separated and repo-relative; in `areas`, a glob starting with `!` excludes the files it matches.
 
 ## Development
 

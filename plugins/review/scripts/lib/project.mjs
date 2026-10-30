@@ -95,7 +95,8 @@ export function globToRegExp(glob) {
 
 export function matchesAny(relPath, globs) {
   const p = toPosix(relPath);
-  return globs.some((g) => globToRegExp(g).test(p));
+  const hit = (g) => globToRegExp(g).test(p);
+  return globs.some((g) => !g.startsWith('!') && hit(g)) && !globs.some((g) => g.startsWith('!') && hit(g.slice(1)));
 }
 
 const bad = (msg) => new Error(`.claude/ai-dev-team.json: ${msg}`);

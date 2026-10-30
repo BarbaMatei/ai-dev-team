@@ -14,7 +14,7 @@ Proven code review for Claude Code: a review finding counts only when a failing 
 | `decisions.mjs` | Matches a finding to past owner decisions | `decisions` |
 | `mutate-check.mjs` | Breaks one line, requires the test to fail, restores the file | `tests` |
 
-A bolt is one unit of work on its own branch, reviewed as one PR. An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry.
+A bolt is one unit of work on its own branch, reviewed as one PR. An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry; in `areas`, a glob starting with `!` excludes the files it matches, and an exclusion in a config area merged into a rule area applies to that rule area too.
 
 ```json
 {
