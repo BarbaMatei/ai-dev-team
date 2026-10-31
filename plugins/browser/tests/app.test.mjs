@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { projectRoot } from '../scripts/lib/project.mjs';
 
 const script = fileURLToPath(new URL('../scripts/app.mjs', import.meta.url));
-const base = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e app-'));
+const base = fs.mkdtempSync(path.join(os.tmpdir(), 'browser app-'));
 const dirs = [];
 const servers = [];
 
@@ -18,7 +18,7 @@ after(() => {
   for (const d of dirs) {
     run(d, ['down']);
     const key = crypto.createHash('sha1').update(projectRoot(d)).digest('hex').slice(0, 12);
-    fs.rmSync(path.join(os.tmpdir(), 'ai-dev-team-e2e', key), { recursive: true, force: true });
+    fs.rmSync(path.join(os.tmpdir(), 'ai-dev-team-browser', key), { recursive: true, force: true });
   }
   for (const s of servers) s.kill();
   fs.rmSync(base, { recursive: true, force: true });
@@ -69,22 +69,22 @@ setInterval(() => {}, 1000);
 `,
 };
 
-function project(e2e) {
+function project(cfg) {
   const dir = fs.mkdtempSync(path.join(base, 'my proj-'));
   dirs.push(dir);
   fs.mkdirSync(path.join(dir, '.claude'));
   for (const [n, t] of Object.entries(FILES)) fs.writeFileSync(path.join(dir, n), t);
-  configure(dir, e2e);
+  configure(dir, cfg);
   return dir;
 }
 
-const configure = (dir, e2e) => fs.writeFileSync(path.join(dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ e2e }));
+const configure = (dir, cfg) => fs.writeFileSync(path.join(dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ browser: cfg }));
 const q = (p) => `"${p}"`;
 const cmd = (dir, file, ...args) => `${q(process.execPath)} ${q(path.join(dir, file))} ${args.join(' ')}`;
 const url = (port) => `http://127.0.0.1:${port}/`;
 const statePath = (dir) => {
   const key = crypto.createHash('sha1').update(projectRoot(dir)).digest('hex').slice(0, 12);
-  return path.join(os.tmpdir(), 'ai-dev-team-e2e', key, 'state.json');
+  return path.join(os.tmpdir(), 'ai-dev-team-browser', key, 'state.json');
 };
 const bootNow = () => Math.round(Date.now() / 1000 - os.uptime());
 const lines = (r) => r.stdout.trim().split(/\r?\n/);
@@ -107,7 +107,7 @@ test('up starts the entries in order, status sees them, down stops them with the
   assert.equal(await listens(pa), false);
   assert.equal(await listens(pb), false);
   assert.deepEqual(lines(run(dir, ['status'])), [`a down ${url(pa)}`, `b down ${url(pb)}`]);
-  assert.equal(run(dir, ['down']).stdout.trim(), 'e2e: nothing to stop');
+  assert.equal(run(dir, ['down']).stdout.trim(), 'browser: nothing to stop');
 });
 
 test('an entry already listening is reused and left running by down', async () => {
@@ -119,7 +119,7 @@ test('an entry already listening is reused and left running by down', async () =
   const up = run(dir, ['up']);
   assert.equal(up.status, 0, up.stderr);
   assert.deepEqual(lines(up), ['reuse web', `base ${url(port)}`]);
-  assert.equal(run(dir, ['down']).stdout.trim(), 'e2e: nothing to stop');
+  assert.equal(run(dir, ['down']).stdout.trim(), 'browser: nothing to stop');
   assert.equal(await listens(port), true);
 });
 
@@ -128,7 +128,7 @@ test('an entry with no command and nothing listening fails with a clear message'
   const dir = project({ baseUrl: url(port), boot: [{ name: 'api', ready: url(port) }] });
   const up = run(dir, ['up']);
   assert.equal(up.status, 1);
-  assert.equal(up.stderr.trim(), `e2e: api not ready at ${url(port)} and has no command; start it first`);
+  assert.equal(up.stderr.trim(), `browser: api not ready at ${url(port)} and has no command; start it first`);
 });
 
 test('a timeout prints the log tail and stops what this call started', async () => {
@@ -141,12 +141,12 @@ test('a timeout prints the log tail and stops what this call started', async () 
   configure(dir, { baseUrl: url(pb), timeoutSec: 2, boot });
   const up = run(dir, ['up']);
   assert.equal(up.status, 1);
-  assert.match(up.stderr, /e2e: b not ready after 2s; last log lines:/);
+  assert.match(up.stderr, /browser: b not ready after 2s; last log lines:/);
   assert.match(up.stderr, /last-line-marker/);
   assert.equal(await listens(pa), false);
   const pid = Number(/pid=(\d+)/.exec(up.stderr)[1]);
   assert.throws(() => process.kill(pid, 0), 'the hung process must be dead');
-  assert.equal(run(dir, ['down']).stdout.trim(), 'e2e: nothing to stop');
+  assert.equal(run(dir, ['down']).stdout.trim(), 'browser: nothing to stop');
 });
 
 test('a process that exits before it is ready stops the wait at once and shows its output', async () => {
@@ -157,7 +157,7 @@ test('a process that exits before it is ready stops the wait at once and shows i
   const up = run(dir, ['up']);
   assert.equal(up.status, 1);
   assert.ok(Date.now() - started < 15000, 'must not wait for timeoutSec');
-  assert.match(up.stderr, /e2e: q exited before ready; last log lines:/);
+  assert.match(up.stderr, /browser: q exited before ready; last log lines:/);
   assert.match(up.stderr, /quit-line-marker/);
 });
 
@@ -197,12 +197,12 @@ test('tcp:// readiness works', async () => {
   assert.equal(await listens(port), false);
 });
 
-test('an invalid e2e.boot exits 2 with one line', () => {
+test('an invalid browser.boot exits 2 with one line', () => {
   const dir = project({ baseUrl: 'http://127.0.0.1:1', boot: 'nope' });
   const r = run(dir, ['up']);
   assert.equal(r.status, 2);
   assert.equal(r.stderr.trim().split(/\r?\n/).length, 1);
-  assert.match(r.stderr, /e2e\.boot must be an array/);
+  assert.match(r.stderr, /browser\.boot must be an array/);
 });
 
 test('an up that was cut off leaves no orphan: the next up replaces it and down stops everything', async () => {
@@ -241,7 +241,7 @@ test('down ignores a state file written before the last reboot', () => {
   const p = bystander();
   writeState(dir, bootNow() - 86400, p.pid);
   const down = run(dir, ['down']);
-  assert.equal(down.stdout.trim(), 'e2e: nothing to stop');
+  assert.equal(down.stdout.trim(), 'browser: nothing to stop');
   assert.doesNotThrow(() => process.kill(p.pid, 0), 'the unrelated process must survive');
 });
 
@@ -265,4 +265,13 @@ test('duplicate or unsafe boot names exit 2 with one line', () => {
     assert.equal(r.stderr.trim().split(/\r?\n/).length, 1);
     assert.match(r.stderr, re);
   }
+});
+
+test('an e2e key alone no longer configures the app: up exits 2 asking for browser.baseUrl', () => {
+  const dir = project({});
+  const legacy = { baseUrl: 'http://127.0.0.1:1', boot: [{ name: 'web', ready: 'http://127.0.0.1:1/' }] };
+  fs.writeFileSync(path.join(dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ e2e: legacy }));
+  const r = run(dir, ['up']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stderr.trim(), '.claude/ai-dev-team.json: browser.baseUrl is not set; the settings moved from the "e2e" key to "browser": rename the key');
 });

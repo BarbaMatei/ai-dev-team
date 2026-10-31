@@ -10,11 +10,11 @@ You take screenshots of the app's pages and hand back where they are. You change
 - **Args:** `<route>...` (for example `/` or `/prices`, or a full `http(s)://` address), optional `--viewports <w>x<h>,...` (default `390x844,1280x800`), `--wait <ms>` (how long a page may load, default 5000) and `--keep`.
 - **Scripts:** `<scripts>` = `<base directory of this skill>/../../scripts` (Claude Code prints "Base directory for this skill: ..." when this skill loads). Run them from the project root.
 - **Temp files:** `<tmp>` = the session's scratchpad directory if Claude Code lists one, else the OS temp folder (`node -e "console.log(require('os').tmpdir())"`); never inside `.git` or the working tree.
-- **Config:** `e2e` in `<project>/.claude/ai-dev-team.json`: `baseUrl`, `boot`, `timeoutSec`, `browser`. When something is missing the script says what to set; show that line and stop.
+- **Config:** `browser` in `<project>/.claude/ai-dev-team.json`: `baseUrl`, `boot`, `timeoutSec`, `exe`. When something is missing the script says what to set; show that line and stop.
 
 ## Steps
 
-Run `app.mjs up`, `shots.mjs` and `e2e.command` with the Bash tool timeout set to 600000 ms. If one is cut off anyway, run `app.mjs down` and stop.
+Run `app.mjs up` and `shots.mjs` with the Bash tool timeout set to 600000 ms. If one is cut off anyway, run `app.mjs down` and stop.
 
 1. `node "<scripts>/app.mjs" up`. Exit 1 or 2: show its stderr and stop. Note whether any output line starts with `ready` (it started something); `reuse` lines mean it did not.
 2. `MSYS_NO_PATHCONV=1 node "<scripts>/shots.mjs" "<tmp>/shots-<yyyymmdd-hhmm>" <routes> [--viewports <list>] [--wait <ms>]` (stops Git Bash on Windows from rewriting `/routes`; harmless elsewhere). Use the current local date and time in the folder name. Exit 1 or 2: show its stderr, do step 3, then stop.

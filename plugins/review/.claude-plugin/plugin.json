@@ -1,7 +1,7 @@
 {
   "name": "review",
-  "version": "0.3.0",
-  "description": "Proven code review: review-bolt and sweep-area run the review, prove-findings keeps only findings a failing test proves, mutate-check shows a regression test guards its line, and design-critic attacks risky designs before coding.",
+  "version": "0.4.0",
+  "description": "Proven code review: review-bolt and sweep-area run the review, prove-findings keeps only findings a failing test proves, fix-findings fixes proven bugs one at a time with the owner, mutate-check shows a regression test guards its line, and design-critic attacks risky designs before coding.",
   "author": { "name": "Matei Barba" },
   "license": "MIT",
   "repository": "https://github.com/BarbaMatei/ai-dev-team"

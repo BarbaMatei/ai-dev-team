@@ -1,44 +1,28 @@
 # e2e
 
-Start the app, take screenshots of its pages, and turn story acceptance criteria into browser tests. Zero dependencies: Node 22 or newer, plus a Chrome, Edge or Chromium already on the machine.
+Turn story acceptance criteria into Playwright tests. Zero dependencies of its own. It needs the `browser` plugin, which starts the app.
 
 ## What is in it
 
-- `app.mjs up|down|status` starts the app's parts in order (for example the API, then the web server), waits until each answers, and stops them again with everything they started. A part that already runs is reused and left alone.
-- `shots.mjs` takes one PNG per page and screen size with a headless browser.
-- Screenshots use the DevTools protocol, so phone viewport widths are exact. One browser profile is shared across the shots of a run. `E2E_START_TIMEOUT_MS` (default 15000) is for tests only.
-- Skill `e2e:capture` boots the app, takes the screenshots and returns the folder. Args: `<route>... [--viewports 390x844,1280x800] [--wait <ms>] [--keep]`.
-- Skill `e2e:browser-test` writes one Playwright spec per story from its acceptance criteria and runs it. Args: `<story file>...`. It never creates the e2e project: that is your call, and `skills/browser-test/conventions.md` says how.
+- Skill `e2e:browser-test` writes one Playwright spec per story from its acceptance criteria and runs it against the app that `browser:app up` started. Args: `<story file>...`. It never creates the e2e project: that is your call, and `skills/browser-test/conventions.md` says how.
 
 ## Settings
 
-In `<project>/.claude/ai-dev-team.json`. Set at least `baseUrl`.
+In `<project>/.claude/ai-dev-team.json`. The app (`baseUrl`, `boot`) is configured under `browser`; see the `browser` plugin.
 
 ```json
 {
   "e2e": {
-    "baseUrl": "http://localhost:3000",
-    "timeoutSec": 120,
-    "boot": [
-      { "name": "api", "command": "npm run api", "cwd": "server", "ready": "http://localhost:5000/health", "env": { "PORT": "5000" } },
-      { "name": "web", "command": "npm start", "ready": "http://localhost:3000/" },
-      { "name": "db", "ready": "tcp://localhost:5432" }
-    ],
     "dir": "e2e",
-    "browser": "C:/Program Files/Google/Chrome/Application/chrome.exe",
     "command": "npx playwright test --grep {filter}"
   }
 }
 ```
 
-- `boot[].ready`: an `http(s)://` address that answers with any status below 400, or `tcp://host:port` that accepts a connection. Without a `command` the part must already run.
-- `timeoutSec`: how long to wait for each part (default 120).
-- `browser`: a path, or a list `[exe, ...args]`. A path that does not exist is an error. Unset: the `CHROME_PATH` variable, then the usual install places, then `google-chrome`, `chromium`, `msedge` on the PATH.
-- `dir` and `command` are used by `browser-test` only.
-
-An invalid setting prints one line and exits 2.
+- `dir`: the e2e project folder. Missing: the skill stops and says how to create one.
+- `command`: runs the e2e tests; `{filter}` is replaced by the story id.
 
 ## Good to know
 
-- State and logs live in `<temp folder>/ai-dev-team-e2e/<project id>/`. `up` prints the last 20 log lines when a part does not start.
-- `down` stops only what `up` started.
+- Without the `browser` plugin the skill stops with "Install the browser plugin: it starts the app."
+- Screenshots moved to `browser:capture`.

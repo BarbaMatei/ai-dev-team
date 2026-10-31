@@ -1,0 +1,8 @@
+{
+  "name": "browser",
+  "version": "0.1.0",
+  "description": "Starts and stops the app, takes screenshots of its pages and drives it step by step (clicks, typing, uploads, faked replies, console and network log) with a headless Chromium browser; other plugins use its app, capture and drive skills.",
+  "author": { "name": "Matei Barba" },
+  "license": "MIT",
+  "repository": "https://github.com/BarbaMatei/ai-dev-team"
+}
