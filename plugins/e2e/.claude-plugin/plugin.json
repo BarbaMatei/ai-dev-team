@@ -1,6 +1,6 @@
 {
   "name": "e2e",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Writes Playwright tests from story acceptance criteria; the browser plugin starts the app.",
   "author": { "name": "Matei Barba" },
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "ui-review",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Reviews UI screenshots against a project's design tokens and UI rules: the ui-critic agent flags visible defects, a script checks every contrast claim, and findings go to a report and, if you choose, to issues.",
   "author": { "name": "Matei Barba" },
   "license": "MIT",

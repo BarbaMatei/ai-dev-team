@@ -11,7 +11,7 @@
     {
       "name": "review",
       "source": "./plugins/review",
-      "description": "Proven code review: review-bolt and sweep-area run the review, prove-findings keeps only findings a failing test proves, mutate-check shows a regression test guards its line, and design-critic attacks risky designs before coding."
+      "description": "Proven code review: review-bolt and sweep-area run the review, prove-findings keeps only findings a failing test proves, fix-findings fixes proven bugs one at a time with the owner, mutate-check shows a regression test guards its line, and design-critic attacks risky designs before coding."
     },
     {
       "name": "spec-upkeep",
@@ -31,7 +31,7 @@
     {
       "name": "browser",
       "source": "./plugins/browser",
-      "description": "Starts and stops the app and takes screenshots of its pages with a headless Chromium browser; other plugins use its app and capture skills."
+      "description": "Starts and stops the app, takes screenshots of its pages and drives it step by step (clicks, typing, uploads, faked replies, console and network log) with a headless Chromium browser; other plugins use its app, capture and drive skills."
     },
     {
       "name": "e2e",
