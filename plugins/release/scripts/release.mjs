@@ -1,21 +1,17 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { prependSection, readVersion, replaceVersion, sectionBody } from './lib/changelog.mjs';
-import { bumpFor, lastTag, nextVersion, readCommits, tagText } from './lib/commits.mjs';
+import { bumpFor, lastTag, nextVersion, readCommits, runGit, tagText } from './lib/commits.mjs';
 import { loadConfig, projectRoot, toPosix } from './lib/project.mjs';
 
 const fail = (msg) => {
   throw Object.assign(new Error(msg), { exit: 2 });
 };
-const bad = (key, why) => fail(`.claude/ai-dev-team.json: release.${key} ${why}`);
+const bad = (key, why) => fail(`.claude/ai-dev-team.json: release${key ? `.${key}` : ''} ${why}`);
 
-function git(root, args) {
-  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
-  return { ok: r.status === 0, out: r.stdout ?? '', err: (r.stderr ?? '').trim() };
-}
+const git = runGit;
 
 function gitOrThrow(root, args) {
   const r = git(root, args);
@@ -45,7 +41,10 @@ function folders(root, globs) {
   const found = new Map();
   for (const glob of globs) {
     const g = toPosix(glob).replace(/^\.\//, '').replace(/\/+$/, '');
-    const dirs = g.endsWith('/*') ? subfolders(root, g.slice(0, -2)) : fs.existsSync(path.join(root, g)) ? [g] : [];
+    if (path.isAbsolute(g) || g.split('/').includes('..')) bad('packages', `entry "${glob}" must stay inside the project`);
+    const lit = path.join(root, g);
+    if (!g.endsWith('/*') && fs.existsSync(lit) && !fs.statSync(lit).isDirectory()) bad('packages', `entry "${glob}" must be a folder`);
+    const dirs = g.endsWith('/*') ? subfolders(root, g.slice(0, -2)) : fs.existsSync(lit) ? [g] : [];
     for (const d of dirs) found.set(d, { dir: d, abs: path.join(root, d), name: path.basename(d === '.' ? root : d) });
   }
   return [...found.values()];
@@ -85,22 +84,34 @@ function plan(root, pkg, cfg, tags) {
 function apply(root, plans, cfg, single) {
   const date = new Date().toISOString().slice(0, 10);
   const files = [];
-  for (const p of plans) {
-    if (p.vfile && p.text !== null && p.current !== null) {
-      fs.writeFileSync(p.vfile, replaceVersion(p.text, p.version));
-      files.push(p.vfile);
+  const created = [];
+  try {
+    for (const p of plans) {
+      if (p.vfile && p.current !== null) {
+        files.push(p.vfile);
+        fs.writeFileSync(p.vfile, replaceVersion(p.text, p.version));
+      }
+      const log = path.join(p.abs, cfg.changelog);
+      if (!fs.existsSync(log)) created.push(log);
+      files.push(log);
+      p.body = sectionBody(p.commits);
+      prependSection(log, p.version, date, p.body);
     }
-    const log = path.join(p.abs, cfg.changelog);
-    const body = sectionBody(p.commits);
-    prependSection(log, p.version, date, body);
-    files.push(log);
-    p.notes = path.join(os.tmpdir(), `release-${p.tag}.md`);
-    fs.writeFileSync(p.notes, body);
+    gitOrThrow(root, ['add', '--', ...files.map((f) => toPosix(path.relative(root, f)))]);
+    const label = single ? plans[0].version : plans.map((p) => `${p.name} ${p.version}`).join(', ');
+    gitOrThrow(root, ['commit', '-q', '-m', `chore(release): ${label}`]);
+  } catch (e) {
+    const rel = files.map((f) => toPosix(path.relative(root, f)));
+    git(root, ['reset', '-q', '--', ...rel]);
+    for (const f of created) fs.rmSync(f, { force: true });
+    git(root, ['checkout', '--', ...rel.filter((_, i) => !created.includes(files[i]))]);
+    throw new Error(`release: could not commit the release, files restored: ${e.message.split(/\r?\n/)[0]}`);
   }
-  gitOrThrow(root, ['add', '--', ...files.map((f) => toPosix(path.relative(root, f)))]);
-  const label = single ? plans[0].version : plans.map((p) => `${p.name} ${p.version}`).join(', ');
-  gitOrThrow(root, ['commit', '-q', '-m', `chore(release): ${label}`]);
-  for (const p of plans) gitOrThrow(root, ['tag', '-a', p.tag, '-m', `${p.name} ${p.version}`]);
+  for (const p of plans) {
+    p.notes = path.join(os.tmpdir(), `release-${p.tag.replace(/[^A-Za-z0-9._-]/g, '-')}.md`);
+    fs.writeFileSync(p.notes, p.body);
+    gitOrThrow(root, ['tag', '-a', p.tag, '-m', `${p.name} ${p.version}`]);
+  }
 }
 
 function main(argv) {
@@ -119,9 +130,14 @@ function main(argv) {
   }
   const tags = gitOrThrow(root, ['tag', '--list']).split(/\r?\n/).filter(Boolean);
   const pkgs = folders(root, cfg.packages);
+  const spaced = pkgs.find((p) => /\s/.test(p.name));
+  if (spaced) fail(`release: package name "${spaced.name}" must not contain whitespace`);
   const plans = pkgs
     .map((p) => plan(root, p, cfg, tags))
     .filter(Boolean);
+  for (const [i, p] of plans.entries()) {
+    if (plans.findIndex((q) => q.tag === p.tag) !== i || git(root, ['rev-parse', '-q', '--verify', `refs/tags/${p.tag}`]).ok) fail(`release: tag ${p.tag} would be created twice or already exists`);
+  }
   if (!plans.length) return console.log('nothing to release');
   if (!write) {
     for (const p of plans) console.log(`would release ${p.name} ${p.current ?? '-'} -> ${p.version} (${p.bump}) ${p.tag}`);

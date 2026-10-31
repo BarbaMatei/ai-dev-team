@@ -3,8 +3,17 @@ import { spawnSync } from 'node:child_process';
 const SEMVER = '(\\d+\\.\\d+\\.\\d+)';
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const KEEP = /^GIT_(AUTHOR|COMMITTER|CONFIG)/;
+
+export function runGit(root, args) {
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (k.startsWith('GIT_') && !KEEP.test(k)) delete env[k];
+  const r = spawnSync('git', args, { cwd: root, env, encoding: 'utf8', maxBuffer: 1 << 28 });
+  return { ok: r.status === 0, out: r.stdout ?? '', err: (r.stderr ?? '').trim() };
+}
+
 export function tagText(pattern, name, version) {
-  return pattern.replace('{name}', name).replace('{version}', version);
+  return pattern.replace(/{name}/g, () => name).replace(/{version}/g, () => version);
 }
 
 export function tagRegExp(pattern, name) {
@@ -38,9 +47,9 @@ export function parseCommit(sha, subject, body) {
 
 export function readCommits(root, from, dir) {
   const range = from ? [`${from}..HEAD`] : ['HEAD'];
-  const r = spawnSync('git', ['log', ...range, '--no-merges', '--format=%H%x1f%s%x1f%b%x1e', '--', dir], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
-  if (r.status !== 0) throw new Error(`git log failed: ${r.stderr.trim()}`);
-  return r.stdout
+  const r = runGit(root, ['log', ...range, '--no-merges', '--format=%H%x1f%s%x1f%b%x1e', '--', dir]);
+  if (!r.ok) throw new Error(`git log failed: ${r.err}`);
+  return r.out
     .split('\x1e')
     .map((rec) => rec.replace(/^\n/, ''))
     .filter(Boolean)

@@ -136,9 +136,10 @@ test('an untouched package is not released', () => {
 });
 
 test('merge commits, chore(release) commits and non-conventional subjects never count', () => {
-  const dir = single();
+  const dir = repo({ 'package.json': pkgJson('0.1.0') }, { release: { versionFile: 'package.json', patch: 'any' } });
+  git(dir, 'tag', 'v0.1.0');
   git(dir, 'checkout', '-q', '-b', 'topic');
-  commit(dir, 'docs: notes', 'topic.txt');
+  commit(dir, 'wip on the topic', 'topic.txt');
   git(dir, 'checkout', '-q', 'main');
   git(dir, 'merge', '--no-ff', '-q', '-m', 'fix: sneaky merge', 'topic');
   commit(dir, 'chore(release): 0.1.0');
@@ -147,6 +148,8 @@ test('merge commits, chore(release) commits and non-conventional subjects never 
   const r = run(dir, ['--write']);
   assert.equal(r.code, 0, r.err);
   assert.equal(r.out.trim(), 'nothing to release');
+  commit(dir, 'feat(release): a real feature');
+  assert.match(run(dir).out, /0\.2\.0/);
 });
 
 test('with patch "any" a docs commit releases a patch; with the default it releases nothing', () => {
@@ -251,4 +254,65 @@ test('without --write nothing changes', () => {
   assert.equal(git(dir, 'status', '--porcelain'), '');
   assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
   assert.equal(read(dir, 'package.json'), pkgJson('0.1.0'));
+});
+
+test('a tag with a slash gets a flat notes file name', () => {
+  const dir = repo({ 'package.json': pkgJson('0.1.0') }, { release: { versionFile: 'package.json', tag: '{name}/v{version}' } });
+  const name = path.basename(dir);
+  git(dir, 'tag', `${name}/v0.1.0`);
+  commit(dir, 'fix: one');
+  const r = run(dir, ['--write']);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(git(dir, 'tag', '--list', `${name}/v0.1.1`), `${name}/v0.1.1`);
+  assert.ok(fs.existsSync(path.join(os.tmpdir(), `release-${name}-v0.1.1.md`)));
+});
+
+test('two packages computing the same tag exit 2 naming the tag', () => {
+  const dir = repo(
+    { 'pkgs/a/package.json': pkgJson('0.1.0'), 'pkgs/b/package.json': pkgJson('0.1.0') },
+    { release: { packages: ['pkgs/*'], versionFile: 'package.json' } },
+  );
+  git(dir, 'tag', 'v0.1.0');
+  commit(dir, 'fix: both', 'pkgs/a/x.txt');
+  commit(dir, 'fix: both', 'pkgs/b/x.txt');
+  const r = run(dir, ['--write']);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /^release: tag v0\.1\.1 .*\n$/);
+  assert.equal(git(dir, 'status', '--porcelain'), '');
+});
+
+test('a failing release commit restores every written file', () => {
+  const dir = single();
+  commit(dir, 'fix: one');
+  const hook = path.join(dir, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+  fs.chmodSync(hook, 0o755);
+  const r = run(dir, ['--write']);
+  assert.equal(r.code, 1);
+  assert.equal(r.err.trim().split('\n').length, 1);
+  assert.equal(read(dir, 'package.json').replaceAll('\r\n', '\n'), pkgJson('0.1.0'));
+  assert.equal(fs.existsSync(path.join(dir, 'CHANGELOG.md')), false);
+  assert.equal(git(dir, 'status', '--porcelain'), '');
+  assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
+});
+
+test('package entries must be folders inside the project without spaces in the name', () => {
+  for (const [packages, dirs] of [[['..'], {}], [['package.json'], {}], [['my pkg'], { 'my pkg/x.txt': 'x' }]]) {
+    const dir = repo({ 'package.json': pkgJson('0.1.0'), ...dirs }, { release: { packages } });
+    const r = run(dir);
+    assert.equal(r.code, 2);
+    assert.equal(r.err.trim().split('\n').length, 1);
+  }
+});
+
+test('a CRLF changelog and a CRLF version file keep their line endings', () => {
+  const dir = single();
+  put(dir, 'package.json', pkgJson('0.1.0').replace(/\n/g, '\r\n'));
+  put(dir, 'CHANGELOG.md', '# Changelog\r\n\r\n## 0.1.0 (2026-01-01)\r\n\r\nFirst release.\r\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'docs: crlf');
+  commit(dir, 'fix: one');
+  assert.equal(run(dir, ['--write']).code, 0);
+  for (const f of ['package.json', 'CHANGELOG.md']) assert.doesNotMatch(read(dir, f), /(?<!\r)\n/);
+  assert.match(read(dir, 'package.json'), /"version": "0\.1\.1"/);
 });
