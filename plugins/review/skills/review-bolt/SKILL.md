@@ -54,9 +54,9 @@ Test: run only it: <command> in <dir>, with {filter} replaced by <filter>. It fa
 
 ## Ask — only with `--ask`
 
-A. Before step 9, `<fixbase>` = `git rev-parse HEAD`. After each FIXED reply (steps 9, 12 and 15; one step-12 fixer's sites count as one bug), before the next fixer: save `git diff -- <every tracked file it changed, existing tests included>` to `<tmp>/review-bolt-fix-<n>.patch`, then `git checkout -- <those files>`; the new proving test stays.
+A. Before step 9, `<fixbase>` = `git rev-parse HEAD`. Before each fixer (steps 9, 12 and 15; one step-12 fixer's sites count as one bug), `<snap>` = what `git stash create` prints, or `HEAD` when it prints nothing (a snapshot that changes nothing). After its FIXED reply: save `git diff <snap> -- <the files it changed>` to `<tmp>/review-bolt-fix-<n>.patch` (only its edits, existing tests included), then `git apply -R <that patch>`; every proving test stays in the tree.
 B. Present it as `fix-findings` presents a bug only a test shows (`<base directory of this skill>/../fix-findings/presentation.md`, "One message"; the owner's own repro step is skipped on purpose: the test is the evidence): one bug per message, its old and new code from the patch, an UPDATED-TEST change shown as its own old and new assertion with why, ending "Approve?". Wait for the word; approval of one bug never approves the next.
-C. Yes → `git apply <patch>`, run the proving test (it must pass), commit that fix and its test alone. No → the proving test goes under "Needs owner" as a code block with the owner's words, then is removed from the tree.
+C. Yes → `git apply <patch>`, run the proving test (it must pass), then `git apply --cached <patch>` and commit that fix alone; the proving tests are committed at step 17. `--cached` fails (the patch touches uncommitted test lines) → the fix waits for step 17's commit; say so in the PR body. No → the proving test goes under "Needs owner" as a code block with the owner's words, then is removed from its file.
 
 ## Same bug nearby
 
@@ -66,7 +66,7 @@ C. Yes → `git apply <patch>`, run the proving test (it must pass), commit that
 
 ## Round 2 — only if steps 9-12 changed code
 
-14. Write the fix lines to `<tmp>/review-bolt-fixes-<branch with / replaced by ->.diff`: `git diff HEAD -U0` (with `--ask`: `git diff <fixbase> -U0`). Invoke `code-review` with args `medium` and no target while the fixes are uncommitted (with `--ask`: `medium <fixbase>...HEAD`). Keep only findings whose `file:line` lies inside a hunk of that file, or in a file the fixes added, and that do not repeat a round-1 finding (same file, same claim); drop the rest and count them for the PR body as "outside the fix lines". Rounds = 2.
+14. Write the fix lines to `<tmp>/review-bolt-fixes-<branch with / replaced by ->.diff`: `git diff HEAD -U0` (with `--ask`: `git diff <fixbase> -U0`). Invoke `code-review` with args `medium` and no target while the fixes are uncommitted (with `--ask`: `medium <fixbase>...HEAD`; if it cannot use that target, `medium <current branch name>`, which the filter below narrows). Keep only findings whose `file:line` lies inside a hunk of that file, or in a file the fixes added, and that do not repeat a round-1 finding (same file, same claim); drop the rest and count them for the PR body as "outside the fix lines". Rounds = 2.
 15. Invoke `review:prove-findings` on the kept findings with args `base <base>, uncommitted changes only` (with `--ask`: `base <fixbase>`); fix each PROVEN line with steps 9-10 (and Ask).
 16. No round 3 and no re-review: anything still open goes under "Needs owner".
 

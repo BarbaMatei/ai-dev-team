@@ -48,7 +48,7 @@ Three outcomes, all normal. **Stands:** present the fix. **Narrowed:** real but 
 | "continue" in the middle of an answer | finish the answer | start the next bug |
 | "can I see it myself?" | steps and a test account, or "cannot be reproduced" plainly | a paraphrase of the issue |
 | "no, I didn't see it" | re-derive: data, environment, or a wrong chain | permission to fix anyway |
-| "it still doesn't work" (re-check) | re-run the steps with `browser:drive`, re-derive, then present the new change and ask "Approve?" again | permission to edit again without showing it |
+| "it still doesn't work" (re-check) | re-run the steps with `browser:drive`, re-derive, then present the new change and ask "Approve?" again; it lands as a follow-up commit | permission to edit again without showing it |
 | silence | nothing happens | permission |
 
 **Pushback:** re-derive from the source; do not defend. When they are right, one line, "You're right: <evidence>", then the corrected message. Two rounds on one bug without approval means the framing is wrong: dispatch a fresh general-purpose subagent with the issue, the code and the question "can this be fixed, and how, as a complete file list", without mentioning your proposal; verify its claims, then show both views.

@@ -49,7 +49,8 @@ Along the way: a defect you find is named in one line and filed as an issue only
 1. One message on what comes next: a final review tidies the code on its own (the PR lists every tidy-up) and brings each bug it proves to the owner like these, one at a time, and asks before filing any issue. Then invoke `review:review-bolt` with args `--base <default branch> --ask`. Its reply is an intermediate result: continue with step 2.
 2. Put one outcome line per bug and `Closes #<n>` for each fixed or closed issue at the top of the PR body file review-bolt names in its reply, then `gh pr edit --body-file <that file>`.
 3. Comment on each batch issue in plain words: what was wrong, what changed or why it closes, the PR link.
-4. Reply: the PR link, the tally, the "Needs owner" items. Never merge.
+4. If you started the app at setup, `browser:app down`.
+5. Reply: the PR link, the tally, the "Needs owner" items. Never merge.
 
 ## Red flags: stop and go back
 
