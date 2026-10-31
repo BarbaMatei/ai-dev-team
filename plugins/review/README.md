@@ -9,12 +9,14 @@ Proven code review for Claude Code: a review finding counts only when a failing 
 | `review-bolt` skill | When a branch's code is done: simplify, at most two proven review rounds, fixes, mutate-check, the PR body | `tests`, `triggers`, `areas`, `rulesDir`, `decisions`, `bugs` |
 | `sweep-area` skill | Owner-started bug sweep of one area of the default branch; files proven bugs as issues | `areas`, `rulesDir`, `tests`, `bugs` |
 | `prove-findings` skill | Keeps only findings a fresh subagent's failing test proves | `tests`, `areas`, `rulesDir` |
+| `fix-findings` skill | Fixes proven bugs with the owner, one at a time: checks each on the running app (browser plugin) or with its failing test, edits only after the owner's word, ends with `review-bolt --ask` | `tests`, `browser`, `fix` |
 | `design-critic` agent | One adversarial pass over a design before coding a trigger-area change | `rulesDir` |
 | `areas.mjs` | Touched areas and trigger, files of an area, areas of a file, the same bug shape nearby | `rulesDir`, `areas`, `triggers` |
 | `decisions.mjs` | Matches a finding to past owner decisions | `decisions` |
 | `mutate-check.mjs` | Breaks one line, requires the test to fail, restores the file | `tests` |
+| `fix-setup.mjs` | Prints the settings a fix session needs, with what to do instead for each missing one | `tests`, `browser`, `fix` |
 
-A bolt is one unit of work on its own branch, reviewed as one PR. An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry; in `areas`, a glob starting with `!` excludes the files it matches, and an exclusion in a config area merged into a rule area applies to that rule area too.
+A bolt is one unit of work on its own branch, reviewed as one PR. An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry; in `areas`, a glob starting with `!` excludes the files it matches, and an exclusion in a config area merged into a rule area applies to that rule area too. `fix` (all optional strings): `accounts` (where the test accounts are), `dataQuery` (a read-only query command with `{sql}`), `logs` (where the server log goes), `apiCopy` (starts an own server copy on `{port}`), `mail` (the email catcher's address), `callers` (a command with `{symbol}`).
 
 ```json
 {
@@ -22,7 +24,8 @@ A bolt is one unit of work on its own branch, reviewed as one PR. An area is a r
   "areas": { "web": ["src/app/**"] },
   "triggers": ["payments", "auth"],
   "decisions": "docs/decisions.md",
-  "bugs": { "label": "bug" }
+  "bugs": { "label": "bug" },
+  "fix": { "accounts": "docs/test-accounts.md", "dataQuery": "node scripts/db-query.mjs \"{sql}\"", "apiCopy": "npm run api -- --port {port}" }
 }
 ```
 
@@ -34,7 +37,7 @@ A bolt is one unit of work on its own branch, reviewed as one PR. An area is a r
 4. Round 2, only if round 1 changed code: `code-review medium` on the fix lines → prove → fix. No round 3: the rest goes under "Needs owner".
 5. `mutate-check` each regression test, attach past decisions, write the PR body; the owner reviews and merges.
 
-The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchpad (else the OS temp folder), never inside `.git` or the working tree: Claude Code asks permission for files in `.git`, which stalls a headless run. `--no-pr` stops there.
+The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchpad (else the OS temp folder), never inside `.git` or the working tree: Claude Code asks permission for files in `.git`, which stalls a headless run. `--no-pr` stops there. `--ask` (what `fix-findings` uses): each proven bug's fix is shown to the owner and kept only on a yes; simplify's tidy-ups still commit on their own.
 
 ## Scripts
 
@@ -42,18 +45,13 @@ The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchp
 node scripts/areas.mjs touched [--base <ref>] | files <area> | of <file>... | rules <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]
 node scripts/decisions.mjs --path <file> --text "<finding>"
 node scripts/mutate-check.mjs --file <path> --line <n> [--replace <text>] --kind <tests key> --test <filter>
+node scripts/fix-setup.mjs
 ```
 
 `of` prints `<file><TAB><area>,<area>` (`-` when none); `rules` prints `<rule file><TAB><file>` for each rule file whose area holds the file; `nearby --max <n>` prints nothing and exits 3 above `<n>` sites, so a too-broad pattern is narrowed. A claim that is what the spec asks for becomes `by-design` in prove-findings and lands under Risks. For compiled languages set `tests.<kind>.buildError` (a regex of your compiler's error lines): without it a mutant that fails to compile reads as `GUARDED`, and mutate-check adds a `note:` line saying so.
 
-review-bolt and sweep-area file proven bugs (with repro and the proving test) as GitHub issues; on a public repo those issues are public, so use a private repo, or a label your private tracker picks up, if that matters.
-
-mutate-check prints `GUARDED` (exit 0), or `NOT GUARDED` / `INVALID: <reason>` (exit 1), and always restores the file. Bad arguments or invalid config: one line on stderr, exit 2.
+review-bolt and sweep-area file proven bugs (with repro and the proving test) as GitHub issues; on a public repo those issues are public, so use a private repo, or a label your private tracker picks up, if that matters. mutate-check prints `GUARDED` (exit 0), or `NOT GUARDED` / `INVALID: <reason>` (exit 1), and always restores the file. Bad arguments or invalid config: one line on stderr, exit 2.
 
 ## Does `/code-review` see `.claude/rules`?
 
-Not reliably (Claude Code 2.1.292, tested 2026-10-28). A path-scoped rule attaches only when the reviewer uses the Read tool on a matching file, and reviewers often read through `git diff` instead. When a rule does attach, the reviewer treats it as untrusted tool output and ignores it.
-
-How it was tested: a canary rule on one source file, a one-line change to that file, three headless `/code-review` runs. Low effort: no rule finding (it read only the diff). Medium, rule committed on the branch: found, but only because the rule file showed up in the diff and the reviewer opened it. Medium control, rule invisible to git: the rule attached when the reviewer read the file, but the reviewer said the user had not written it and ignored it.
-
-What the plugin does: `prove-findings` starts with a Rule checklist. A cheap subagent reads the touched areas' rule files and checks every added line against them, so bug-class rules count whether or not the reviewer saw them. Re-test after a Claude Code upgrade before dropping it.
+Not reliably (Claude Code 2.1.292, tested 2026-10-28 with a canary rule and three headless runs): a path-scoped rule attaches only when the reviewer Reads a matching file (it often reads `git diff` instead), and an attached rule is treated as untrusted tool output and ignored. So `prove-findings` starts with a Rule checklist: a cheap subagent checks every added line against the touched areas' rule files. Re-test after a Claude Code upgrade before dropping it.

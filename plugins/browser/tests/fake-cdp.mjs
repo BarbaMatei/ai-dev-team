@@ -8,6 +8,9 @@ const log = process.env.FAKE_CDP_LOG;
 const mode = process.env.FAKE_CDP_MODE ?? '';
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 if (log) fs.writeFileSync(`${log}.pid`, String(process.pid));
+if (log) fs.writeFileSync(`${log}.udd`, udd ?? '');
+const script = process.env.FAKE_CDP_SCRIPT ? JSON.parse(fs.readFileSync(process.env.FAKE_CDP_SCRIPT, 'utf8')) : {};
+const used = {};
 
 if (mode === 'nostart') setInterval(() => {}, 1000);
 else {
@@ -62,7 +65,18 @@ else {
         fs.appendFileSync(log, JSON.stringify({ method, params, sessionId }) + '\n');
         const reply = (result = {}) => send({ id, result, ...(sessionId && { sessionId }) });
         const err = (message) => send({ id, error: { code: -32000, message }, ...(sessionId && { sessionId }) });
-        if (/^(Page|Network|Emulation)\./.test(method) && !sessionId) err(`${method} needs a sessionId`);
+        const scripted = script.replies?.[method];
+        const after = () => {
+          for (const e of script.events?.[method] ?? []) send({ method: e.method, params: e.params, sessionId });
+        };
+        if (scripted) {
+          const r = scripted[Math.min(used[method] ?? 0, scripted.length - 1)];
+          used[method] = (used[method] ?? 0) + 1;
+          if (r.hang) return;
+          if (r.error) err(r.error);
+          else reply(r);
+          after();
+        } else if (/^(Page|Network|Emulation)\./.test(method) && !sessionId) err(`${method} needs a sessionId`);
         else if (method === 'Target.createTarget') reply({ targetId: 'T1' });
         else if (method === 'Target.attachToTarget') {
           if (params.flatten !== true) err('attachToTarget needs flatten: true');
@@ -70,7 +84,7 @@ else {
         } else if (method === 'Page.navigate') {
           if (mode === 'drop') return socket.destroy();
           if (mode === 'navfail') return reply({ frameId: 'F1', errorText: 'net::ERR_CONNECTION_REFUSED' });
-          reply({ frameId: 'F1' });
+          reply({ frameId: 'F1', loaderId: 'L1' });
           if (mode === 'eventsource') send({ method: 'Network.requestWillBeSent', params: { requestId: 'ES1', type: 'EventSource' }, sessionId });
           if (mode !== 'hang') send({ method: 'Page.loadEventFired', params: { timestamp: 1 }, sessionId });
         } else if (method === 'Page.captureScreenshot') {
@@ -82,7 +96,10 @@ else {
           if (mode === 'noclose') return;
           reply();
           setTimeout(() => process.exit(0), 20);
-        } else reply();
+        } else {
+          reply();
+          after();
+        }
       }
     });
   });

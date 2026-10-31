@@ -1,6 +1,6 @@
 {
   "name": "ai-dev-team",
-  "description": "Small standalone Claude Code plugins: guardrails, review, spec-upkeep, test-quality, metrics, e2e, ui-review and architect.",
+  "description": "Small standalone Claude Code plugins: guardrails, review, spec-upkeep, test-quality, metrics, browser, e2e, ui-review and architect.",
   "owner": { "name": "Matei Barba" },
   "plugins": [
     {
@@ -11,7 +11,7 @@
     {
       "name": "review",
       "source": "./plugins/review",
-      "description": "Proven code review: review-bolt and sweep-area run the review, prove-findings keeps only findings a failing test proves, mutate-check shows a regression test guards its line, and design-critic attacks risky designs before coding."
+      "description": "Proven code review: review-bolt and sweep-area run the review, prove-findings keeps only findings a failing test proves, fix-findings fixes proven bugs one at a time with the owner, mutate-check shows a regression test guards its line, and design-critic attacks risky designs before coding."
     },
     {
       "name": "spec-upkeep",
@@ -29,9 +29,14 @@
       "description": "Records one CSV row per merged PR with time to merge, review counts and token use from Claude Code session logs."
     },
     {
+      "name": "browser",
+      "source": "./plugins/browser",
+      "description": "Starts and stops the app, takes screenshots of its pages and drives it step by step (clicks, typing, uploads, faked replies, console and network log) with a headless Chromium browser; other plugins use its app, capture and drive skills."
+    },
+    {
       "name": "e2e",
       "source": "./plugins/e2e",
-      "description": "Boots the app for browser work and takes screenshots of its pages with a headless Chromium browser; the capture skill returns the screenshots, the browser-test skill writes Playwright tests from story acceptance criteria."
+      "description": "Writes Playwright tests from story acceptance criteria; the browser plugin starts the app."
     },
     {
       "name": "ui-review",
