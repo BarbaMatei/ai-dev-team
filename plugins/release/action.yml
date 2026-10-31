@@ -12,22 +12,28 @@ runs:
         node-version: ${{ inputs.node-version }}
     - name: Release
       shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
-        git config user.name "release-bot"
-        git config user.email "release-bot@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         out="$RUNNER_TEMP/release-output.txt"
         node "$GITHUB_ACTION_PATH/scripts/release.mjs" --write | tee "$out"
         if ! grep -q '^release ' "$out"; then
           echo "nothing to release"
           exit 0
         fi
-        git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
+        git push --atomic origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
+        failed=""
         while read -r kind name version tag notes; do
           if [ "$kind" = "release" ]; then
-            gh release create "$tag" --title "$name $version" --notes-file "$notes"
-            echo "released $name $version as $tag"
+            if GH_TOKEN="${{ github.token }}" gh release create "$tag" --title "$name $version" --notes-file "$notes"; then
+              echo "released $name $version as $tag"
+            else
+              failed="$failed $tag"
+            fi
           fi
         done < "$out"
+        if [ -n "$failed" ]; then
+          echo "no release page for:$failed"
+          exit 1
+        fi

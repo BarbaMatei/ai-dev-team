@@ -12,7 +12,7 @@ Works out each package's next version from conventional commits, updates its ver
 { "release": { "packages": ["plugins/*"], "versionFile": ".claude-plugin/plugin.json", "tag": "{name}-v{version}", "patch": "any" } }
 ```
 
-Also `changelog` (file name per package) and `initial` (first version). `patch` is a list of commit types that bump the patch, or `"any"`.
+Defaults: `packages` `["."]`, `tag` `"v{version}"`, `patch` `["fix","perf"]` (or `"any"`), `initial` `"0.1.0"`. Also `changelog` (file name per package). The action commits as `github-actions[bot]`.
 
 ## Bump rules
 
@@ -27,6 +27,9 @@ Also `changelog` (file name per package) and `initial` (first version). `patch` 
 on:
   push:
     branches: [main]
+concurrency:
+  group: release
+  cancel-in-progress: false
 permissions:
   contents: write
 jobs:
@@ -36,10 +39,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
           ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
-      - uses: BarbaMatei/ai-dev-team/plugins/release@release-v0.1.0
+      - uses: BarbaMatei/ai-dev-team/plugins/release@release-v<version>
 ```
+
+Use the latest `release-v...` tag of this repository for `<version>`.
 
 ## Good to know
 

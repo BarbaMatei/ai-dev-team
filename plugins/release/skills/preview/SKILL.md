@@ -13,5 +13,5 @@ You show the release plan and change nothing.
 ## Steps
 
 1. Run `node "<scripts>/release.mjs"` from the project root. Never pass `--write`.
-2. Exit 2: show its message and stop (bad config, dirty tree, missing git identity or a tag collision).
+2. Exit 2: show its message and stop (bad config or a tag collision).
 3. Reply with its lines as printed, then one line: the release itself happens in CI after a merge to the main branch.

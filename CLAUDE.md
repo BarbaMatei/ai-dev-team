@@ -10,7 +10,8 @@ Public Claude Code plugin marketplace of small, standalone plugins. Rules for wo
 - Tests that spawn git delete every `GIT_*` env var and pass `-c user.name=t -c user.email=t@example.com`.
 - Messages never print a matched secret, only `file:line`.
 - Per-project settings live in `<project>/.claude/ai-dev-team.json`; missing file = defaults, invalid = one line on stderr, exit 2.
-- Versions, changelogs and tags are written by the release job after each merge to main (`.github/workflows/release.yml`); never bump a version, edit a CHANGELOG.md or create a tag by hand.
+- Versions, changelogs and tags are written by the release job after each merge to main (`.github/workflows/release.yml`); never change an existing plugin's version, edit a CHANGELOG.md or create a tag by hand (a new plugin starts at the version in its plugin.json).
+- Never write a `chore(release)` commit by hand; that prefix belongs to the release job.
 - Commits: conventional (a commit counts for every plugin whose folder it touches), one-sentence subject, no body, no trailers. Never `--no-verify`.
 - Comments are a last resort: one short line, only for a non-obvious why.
 - Test: `node --test "plugins/*/tests/*.test.mjs" "tests/*.test.mjs"`
