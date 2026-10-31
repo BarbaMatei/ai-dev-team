@@ -1,0 +1,8 @@
+{
+  "name": "browser",
+  "version": "0.1.0",
+  "description": "Starts and stops the app and takes screenshots of its pages with a headless Chromium browser; other plugins use its app and capture skills.",
+  "author": { "name": "Matei Barba" },
+  "license": "MIT",
+  "repository": "https://github.com/BarbaMatei/ai-dev-team"
+}

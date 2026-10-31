@@ -1,15 +1,15 @@
 import { loadConfig } from './project.mjs';
 
-const bad = (msg) => new Error(`.claude/ai-dev-team.json: e2e.${msg}`);
+const bad = (msg) => new Error(`.claude/ai-dev-team.json: browser.${msg}`);
 const isStr = (v) => typeof v === 'string' && v !== '';
 
-export function loadE2e(root) {
-  const e = loadConfig(root).e2e ?? {};
+export function loadBrowser(root) {
+  const e = loadConfig(root).browser ?? {};
   if (e === null || typeof e !== 'object' || Array.isArray(e)) throw bad('must be an object');
-  for (const k of ['baseUrl', 'dir', 'command']) if (e[k] !== undefined && !isStr(e[k])) throw bad(`${k} must be a string`);
+  if (e.baseUrl !== undefined && !isStr(e.baseUrl)) throw bad('baseUrl must be a string');
   if (e.timeoutSec !== undefined && !(typeof e.timeoutSec === 'number' && e.timeoutSec > 0)) throw bad('timeoutSec must be a positive number');
-  const b = e.browser;
-  if (b !== undefined && !isStr(b) && !(Array.isArray(b) && b.length > 0 && b.every(isStr))) throw bad('browser must be a string or an array of strings');
+  const b = e.exe;
+  if (b !== undefined && !isStr(b) && !(Array.isArray(b) && b.length > 0 && b.every(isStr))) throw bad('exe must be a string or an array of strings');
   const boot = e.boot ?? [];
   if (!Array.isArray(boot)) throw bad('boot must be an array');
   const names = new Set();

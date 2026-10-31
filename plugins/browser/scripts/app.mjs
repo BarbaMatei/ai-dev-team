@@ -6,7 +6,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadE2e } from './lib/config.mjs';
+import { loadBrowser } from './lib/config.mjs';
 import { killTree, ours } from './lib/proc.mjs';
 import { projectRoot } from './lib/project.mjs';
 
@@ -37,7 +37,7 @@ async function isReady(url) {
 
 function stateFiles(root) {
   const key = crypto.createHash('sha1').update(root).digest('hex').slice(0, 12);
-  const dir = path.join(os.tmpdir(), 'ai-dev-team-e2e', key);
+  const dir = path.join(os.tmpdir(), 'ai-dev-team-browser', key);
   return { dir, file: path.join(dir, 'state.json') };
 }
 
@@ -80,7 +80,7 @@ async function stopAll(st, names) {
 }
 
 async function up(root, cfg, st, paths) {
-  if (!cfg.baseUrl) throw new Error('.claude/ai-dev-team.json: e2e.baseUrl is not set');
+  if (!cfg.baseUrl) throw new Error('.claude/ai-dev-team.json: browser.baseUrl is not set');
   fs.mkdirSync(paths.dir, { recursive: true });
   const mine = [];
   const fail = async (msg) => {
@@ -96,7 +96,7 @@ async function up(root, cfg, st, paths) {
       save(st, paths.file);
       continue;
     }
-    if (!e.command) await fail(`e2e: ${e.name} not ready at ${e.ready} and has no command; start it first`);
+    if (!e.command) await fail(`browser: ${e.name} not ready at ${e.ready} and has no command; start it first`);
     for (const old of st.started.filter((x) => x.name === e.name)) if (ours(old.pid)) await killTree(old.pid);
     st.started = st.started.filter((x) => x.name !== e.name);
     const log = path.join(paths.dir, `${e.name}.log`);
@@ -120,7 +120,7 @@ async function up(root, cfg, st, paths) {
     }
     if (!ready) {
       const why = exited ? 'exited before ready' : `not ready after ${cfg.timeoutSec}s`;
-      await fail(`e2e: ${e.name} ${why}; last log lines:\n${logTail(log)}`);
+      await fail(`browser: ${e.name} ${why}; last log lines:\n${logTail(log)}`);
     }
     out(`ready ${e.name} ${e.ready}`);
   }
@@ -136,7 +136,7 @@ async function main() {
   const root = projectRoot(process.cwd());
   let cfg;
   try {
-    cfg = loadE2e(root);
+    cfg = loadBrowser(root);
   } catch (e) {
     process.stderr.write(`${e.message}\n`);
     process.exit(2);
@@ -148,7 +148,7 @@ async function main() {
   } else if (cmd === 'down') {
     const stopped = await stopAll(st);
     fs.rmSync(paths.file, { force: true });
-    if (!stopped.length) out('e2e: nothing to stop');
+    if (!stopped.length) out('browser: nothing to stop');
     for (const l of stopped) out(l);
   } else {
     try {

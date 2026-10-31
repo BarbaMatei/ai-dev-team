@@ -6,7 +6,7 @@ Rules for the browser tests the `browser-test` skill writes. Setting up the proj
 
 - Playwright Test lives in the project's own e2e folder (`e2e.dir`), with its own `package.json`. It is not part of the kit.
 - One Chromium project in v1.
-- `baseURL` comes from the environment variable `E2E_BASE_URL`, falling back to `e2e.baseUrl` from `.claude/ai-dev-team.json`.
+- `baseURL` comes from the environment variable `E2E_BASE_URL`, falling back to `browser.baseUrl` from `.claude/ai-dev-team.json`.
 - Trace and screenshot on failure only.
 - `e2e.command` runs a scoped set of tests and contains `{filter}`, for example `npx playwright test --grep {filter}`.
 - Tests are changed in the same PR as the screens they test.

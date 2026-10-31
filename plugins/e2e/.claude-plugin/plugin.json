@@ -1,7 +1,7 @@
 {
   "name": "e2e",
   "version": "0.1.2",
-  "description": "Boots the app for browser work and takes screenshots of its pages with a headless Chromium browser; the capture skill returns the screenshots, the browser-test skill writes Playwright tests from story acceptance criteria.",
+  "description": "Writes Playwright tests from story acceptance criteria; the browser plugin starts the app.",
   "author": { "name": "Matei Barba" },
   "license": "MIT",
   "repository": "https://github.com/BarbaMatei/ai-dev-team"

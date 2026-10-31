@@ -7,7 +7,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const script = fileURLToPath(new URL('../scripts/shots.mjs', import.meta.url));
-const base = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e shots-'));
+const base = fs.mkdtempSync(path.join(os.tmpdir(), 'browser shots-'));
 after(() => fs.rmSync(base, { recursive: true, force: true }));
 let n = 0;
 
@@ -17,7 +17,7 @@ function setup(browser) {
   const dir = path.join(base, `p ${n++}`);
   fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
   const log = path.join(dir, 'cdp.log');
-  const cfg = { e2e: { baseUrl: 'http://localhost:4200', browser: browser ?? [process.execPath, fake] } };
+  const cfg = { browser: { baseUrl: 'http://localhost:4200', exe: browser ?? [process.execPath, fake] } };
   fs.writeFileSync(path.join(dir, '.claude', 'ai-dev-team.json'), JSON.stringify(cfg));
   return { dir, log, out: path.join(dir, 'out dir'), env: { FAKE_CDP_LOG: log } };
 }
@@ -96,7 +96,7 @@ test('a browser that never opens the debugging port exits 1 quickly', () => {
   const t = Date.now();
   const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: 'nostart', E2E_START_TIMEOUT_MS: '700' });
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /e2e: browser did not start/);
+  assert.match(r.stderr, /browser: browser did not start/);
   assert.ok(Date.now() - t < 10000);
 });
 
@@ -117,7 +117,7 @@ for (const [mode, name] of [
     const { dir, out, env } = setup();
     const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: mode });
     assert.equal(r.status, 1);
-    assert.match(r.stderr, /e2e: no screenshot for http:\/\/localhost:4200\/x/);
+    assert.match(r.stderr, /browser: no screenshot for http:\/\/localhost:4200\/x/);
     assert.deepEqual(fs.existsSync(out) ? fs.readdirSync(out) : [], []);
   });
 }
@@ -127,7 +127,7 @@ test('a connection that drops while waiting for the load event fails the shot at
   const t = Date.now();
   const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: 'drop' });
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /e2e: no screenshot for/);
+  assert.match(r.stderr, /browser: no screenshot for/);
   assert.ok(Date.now() - t < 15000);
 });
 
@@ -184,11 +184,11 @@ test('SIGTERM during a shot closes the browser, removes the profile and exits 14
   assert.deepEqual(fs.readdirSync(tmp), []);
 });
 
-test('a configured browser that does not exist exits 2', () => {
+test('a configured browser.exe that does not exist exits 2', () => {
   const { dir, out } = setup(path.join(base, 'no-such-browser.exe'));
   const r = run(dir, [out, '/x']);
   assert.equal(r.status, 2);
-  assert.match(r.stderr, /^e2e: browser not found: /);
+  assert.match(r.stderr, /^browser: browser.exe not found: /);
 });
 
 test('an output folder under a file exits 2 with one line and no stack', () => {
@@ -203,23 +203,23 @@ test('an output folder under a file exits 2 with one line and no stack', () => {
 
 const unconfigured = () => {
   const s = setup();
-  fs.writeFileSync(path.join(s.dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ e2e: { baseUrl: 'http://localhost:4200' } }));
+  fs.writeFileSync(path.join(s.dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ browser: { baseUrl: 'http://localhost:4200' } }));
   const empty = path.join(s.dir, 'empty');
   fs.mkdirSync(empty);
   return { ...s, env: { PATH: '', ProgramFiles: empty, 'ProgramFiles(x86)': empty, LOCALAPPDATA: empty } };
 };
 
-test('with e2e.browser unset, CHROME_PATH is the browser that runs', () => {
+test('with browser.exe unset, CHROME_PATH is the browser that runs', () => {
   const { dir, out, env } = unconfigured();
   const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, CHROME_PATH: process.execPath });
   assert.equal(r.status, 1, r.stderr);
-  assert.match(r.stderr, /e2e: browser did not start/);
+  assert.match(r.stderr, /browser: browser did not start/);
 });
 
-test('with e2e.browser unset and no browser anywhere the detection fails', async (t) => {
+test('with browser.exe unset and no browser anywhere the detection fails', async (t) => {
   const mac = process.platform === 'darwin' && fs.existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
   if (mac || (process.platform !== 'win32' && ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge'].some((n) => fs.existsSync('/usr/bin/' + n)))) return t.skip('a real browser is installed');
-  const { findBrowser } = await import(pathToFileURL(script).href);
+  const { findBrowser } = await import(pathToFileURL(fileURLToPath(new URL('../scripts/lib/browser.mjs', import.meta.url))).href);
   const empty = path.join(base, 'empty');
   fs.mkdirSync(empty, { recursive: true });
   const keys = ['PATH', 'Path', 'ProgramFiles', 'ProgramFiles(x86)', 'LOCALAPPDATA', 'CHROME_PATH'];

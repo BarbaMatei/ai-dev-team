@@ -2,7 +2,7 @@
 
 Reviews screenshots of your app against your design tokens and UI rules. A critic agent looks at the pictures; a script checks every colour-contrast claim, so only real findings stay. Plain Node (>= 22), no dependencies.
 
-It does not take screenshots itself. Give it `.png` files, or routes: then it calls `e2e:capture` from the `e2e` plugin, which boots the app and takes them. Install `e2e` too if you want routes.
+It does not take screenshots itself. Give it `.png` files, or routes: then it calls `browser:capture` from the `browser` plugin, which boots the app and takes them. Install `browser` too if you want routes.
 
 ## The pieces
 
