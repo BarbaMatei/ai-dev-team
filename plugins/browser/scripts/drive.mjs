@@ -28,12 +28,15 @@ function watch(cdp, emit) {
       emit(`exception ${clip(d.exception?.description ?? d.text, 300)}`);
     } else if (method === 'Network.requestWillBeSent') {
       reqs.set(p.requestId, { method: p.request.method, url: p.request.url });
+    } else if (method === 'Network.loadingFinished') {
+      reqs.delete(p.requestId);
     } else if (method === 'Network.responseReceived' && (p.type === 'XHR' || p.type === 'Fetch')) {
       stats.api++;
       emit(`api ${p.response.status} ${reqs.get(p.requestId)?.method ?? 'GET'} ${p.response.url}`, stats.api > API_ON_STDOUT);
     } else if (method === 'Network.loadingFailed') {
       const r = reqs.get(p.requestId);
       emit(`failed ${r?.method ?? 'GET'} ${r?.url ?? p.requestId} ${p.errorText}`);
+      reqs.delete(p.requestId);
     }
   });
   return stats;
@@ -66,10 +69,11 @@ async function main() {
     };
     const ctx = { outDir, out: emit };
 
-    session = await launch(browser);
+    const starting = launch(browser);
     for (const [sig, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
-      process.on(sig, () => session.shutdown().finally(() => process.exit(code)));
+      process.on(sig, () => starting.then((s) => s.shutdown(), () => {}).finally(() => process.exit(code)));
     }
+    session = await starting;
     const stats = watch(session.cdp, emit);
     const page = await openPage(session.cdp);
     const [w, h] = plan.viewport;
@@ -93,7 +97,7 @@ async function main() {
     if (hidden) process.stdout.write(`api … ${hidden} more in drive.log\n`);
     if (process.exitCode !== 1) emit(`done ${done} steps, ${stats.api} api requests, log ${logFile}`);
   } catch (e) {
-    process.exitCode = typeof e.code === 'number' ? e.code : 2;
+    process.exitCode = session ? 1 : typeof e.code === 'number' ? e.code : 2;
     process.stderr.write(`${e.message}\n`);
   } finally {
     if (session) await session.shutdown();

@@ -72,6 +72,7 @@ else {
         if (scripted) {
           const r = scripted[Math.min(used[method] ?? 0, scripted.length - 1)];
           used[method] = (used[method] ?? 0) + 1;
+          if (r.hang) return;
           if (r.error) err(r.error);
           else reply(r);
           after();

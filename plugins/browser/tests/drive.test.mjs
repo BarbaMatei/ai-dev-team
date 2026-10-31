@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -205,4 +205,51 @@ test('a failing step still closes the browser and removes its profile', () => {
   const profile = fs.readFileSync(`${t.log}.udd`, 'utf8');
   assert.ok(profile.length > 0);
   assert.equal(fs.existsSync(profile), false);
+  assert.throws(() => process.kill(Number(fs.readFileSync(`${t.log}.pid`, 'utf8')), 0));
+});
+
+test('a protocol error after the browser started exits 1 and closes the browser', () => {
+  const t = setup([{ sleep: 10 }], { cdp: { replies: { 'Emulation.setDeviceMetricsOverride': [{ error: 'no emulation' }] } } });
+  const r = run(t);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /no emulation/);
+  assert.equal(calls(t.log).at(-1).method, 'Browser.close');
+});
+
+test('an eval of a promise that never settles fails within its timeoutMs with a screenshot', () => {
+  const t = setup([{ eval: 'new Promise(() => {})', timeoutMs: 300 }], { cdp: { replies: { 'Runtime.evaluate': [{ hang: true }] } } });
+  const start = Date.now();
+  const r = run(t);
+  assert.ok(Date.now() - start < 5000);
+  assert.equal(r.status, 1);
+  assert.ok(lines(r).includes('fail 1 eval new Promise(() => {}): evaluation timed out after 300 ms'), r.stdout);
+  assert.ok(fs.existsSync(path.join(t.out, 'fail-1.png')));
+});
+
+test('until keeps retrying after a JS exception', () => {
+  const boom = { exceptionDetails: { text: 'boom', exception: { description: 'ReferenceError: x is not defined' } } };
+  const t = setup([{ until: 'x', timeoutMs: 3000 }], { cdp: { replies: { 'Runtime.evaluate': [boom, val(true)] } } });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test('until that only throws fails with the last error', () => {
+  const boom = { exceptionDetails: { text: 'boom', exception: { description: 'ReferenceError: x is not defined' } } };
+  const t = setup([{ until: 'x', timeoutMs: 300 }], { cdp: { replies: { 'Runtime.evaluate': [boom] } } });
+  const r = run(t);
+  assert.equal(r.status, 1);
+  assert.ok(lines(r).includes('fail 1 until x: still falsy after 300 ms: ReferenceError: x is not defined'), r.stdout);
+});
+
+test('SIGTERM mid-step closes the browser, removes the profile and exits 143', async (t) => {
+  if (process.platform === 'win32') return t.skip('Windows cannot deliver SIGTERM to a handler');
+  const c = setup([{ wait: '#nope', timeoutMs: 20000 }]);
+  const env = { ...process.env, ...c.env };
+  const child = spawn(process.execPath, [script, c.file, c.out], { cwd: c.dir, env, stdio: 'ignore' });
+  const done = new Promise((res) => child.on('exit', (code) => res(code)));
+  for (let i = 0; i < 100 && !(fs.existsSync(c.log) && fs.readFileSync(c.log, 'utf8').includes('Runtime.evaluate')); i++) await new Promise((r) => setTimeout(r, 100));
+  child.kill('SIGTERM');
+  assert.equal(await done, 143);
+  assert.throws(() => process.kill(Number(fs.readFileSync(`${c.log}.pid`, 'utf8')), 0));
+  assert.equal(fs.existsSync(fs.readFileSync(`${c.log}.udd`, 'utf8')), false);
 });

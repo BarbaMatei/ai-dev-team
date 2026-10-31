@@ -12,21 +12,35 @@ const KEY_INFO = {
   ArrowDown: { vk: 40 },
 };
 
-async function evaluate(page, expression) {
-  const r = await page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
-  if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? 'evaluation failed');
+function within(promise, dl, message) {
+  let timer;
+  const timeout = new Promise((_, rej) => (timer = setTimeout(() => rej(Object.assign(new Error(message), { soft: true })), Math.max(dl.at - Date.now(), 1))));
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function evaluate(page, expression, dl) {
+  const r = await within(page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }), dl, `evaluation timed out after ${dl.ms} ms`);
+  if (r.exceptionDetails) throw Object.assign(new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? 'evaluation failed'), { soft: true });
   return r.result?.value;
 }
 
-async function poll(probe, ms, interval = 100) {
-  const end = Date.now() + ms;
+async function poll(dl, message, probe, interval = 100) {
+  let last;
   for (;;) {
-    const v = await probe();
-    if (v) return v;
-    if (Date.now() >= end) return null;
-    await sleep(Math.min(interval, Math.max(end - Date.now(), 1)));
+    try {
+      const v = await probe();
+      if (v) return v;
+    } catch (e) {
+      if (!e.soft) throw e;
+      last = e;
+    }
+    if (Date.now() >= dl.at) throw new Error(last ? `${message}: ${clip(last.message)}` : message);
+    await sleep(Math.min(interval, Math.max(dl.at - Date.now(), 1)));
   }
 }
+
+const clip = (m) => m.replace(/\s+/g, ' ').slice(0, 200);
+const clock = (step) => ({ at: Date.now() + step.timeoutMs, ms: step.timeoutMs });
 
 const finder = (sel, body) => `(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null; ${body} })()`;
 const SHOWN = 'const r = e.getBoundingClientRect(), s = getComputedStyle(e); if (!r.width || !r.height || s.visibility === "hidden" || s.display === "none") return null;';
@@ -45,6 +59,7 @@ export async function screenshot(page, file) {
 }
 
 async function go(page, step) {
+  const dl = clock(step);
   const { net } = page;
   net.open.clear();
   net.skip.clear();
@@ -53,16 +68,11 @@ async function go(page, step) {
     page.closed.then(() => rej(new Error('connection closed')));
   });
   loaded.catch(() => {});
-  const nav = await page.send('Page.navigate', { url: step.url });
+  const nav = await within(page.send('Page.navigate', { url: step.url }), dl, `navigation timed out after ${dl.ms} ms`);
   if (nav.errorText) throw new Error(`navigation failed: ${nav.errorText}`);
-  let timer;
-  const timeout = new Promise((r) => (timer = setTimeout(r, step.timeoutMs, 'timeout')));
-  const outcome = await Promise.race([loaded, timeout]);
-  clearTimeout(timer);
-  if (outcome === 'timeout') throw new Error(`no load event after ${step.timeoutMs} ms`);
+  await within(loaded, dl, `no load event after ${dl.ms} ms`);
   net.last = Date.now();
-  const end = Date.now() + step.timeoutMs;
-  while (Date.now() < end && !(net.open.size === 0 && Date.now() - net.last >= 500)) await sleep(50);
+  while (Date.now() < dl.at && !(net.open.size === 0 && Date.now() - net.last >= 500)) await sleep(50);
 }
 
 async function press(page, key) {
@@ -73,12 +83,11 @@ async function press(page, key) {
 }
 
 async function upload(page, step) {
-  const found = await poll(async () => {
+  const found = await poll(clock(step), `not found after ${step.timeoutMs} ms`, async () => {
     const { root } = await page.send('DOM.getDocument', { depth: 0 });
     const { nodeId } = await page.send('DOM.querySelector', { nodeId: root.nodeId, selector: step.arg });
     return nodeId;
-  }, step.timeoutMs);
-  if (!found) throw new Error(`not found after ${step.timeoutMs} ms`);
+  });
   await page.send('DOM.setFileInputFiles', { files: step.files, nodeId: found });
 }
 
@@ -94,24 +103,18 @@ export async function runStep(page, step, ctx) {
     await screenshot(page, file);
     return ctx.out(`shot ${file}`);
   }
+  const dl = clock(step);
   if (step.action === 'eval') {
-    const json = JSON.stringify((await evaluate(page, arg)) ?? null);
+    const json = JSON.stringify((await evaluate(page, arg, dl)) ?? null);
     return ctx.out(`eval ${step.n} ${json.slice(0, 2000)}`);
   }
-  if (step.action === 'until') {
-    if (!(await poll(() => evaluate(page, arg), step.timeoutMs))) throw new Error(`still falsy after ${step.timeoutMs} ms`);
-    return;
-  }
-  if (step.action === 'wait') {
-    if (!(await poll(() => evaluate(page, VISIBLE(arg)), step.timeoutMs))) throw new Error(notFound);
-    return;
-  }
+  if (step.action === 'until') return void (await poll(dl, `still falsy after ${step.timeoutMs} ms`, () => evaluate(page, arg, dl)));
+  if (step.action === 'wait') return void (await poll(dl, notFound, () => evaluate(page, VISIBLE(arg), dl)));
   if (step.action === 'type') {
-    if (!(await poll(() => evaluate(page, FOCUS(arg)), step.timeoutMs))) throw new Error(notFound);
+    await poll(dl, notFound, () => evaluate(page, FOCUS(arg), dl));
     return page.send('Input.insertText', { text: step.text });
   }
-  const spot = await poll(() => evaluate(page, LOCATE(arg)), step.timeoutMs);
-  if (!spot) throw new Error(notFound);
+  const spot = await poll(dl, notFound, () => evaluate(page, LOCATE(arg), dl));
   if (spot.cover) ctx.out(`note ${step.n} click point covered by ${spot.cover}`);
   const at = { x: spot.x + spot.width / 2, y: spot.y + spot.height / 2, button: 'left', clickCount: 1 };
   await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...at });
