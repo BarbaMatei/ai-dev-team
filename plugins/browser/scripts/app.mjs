@@ -80,7 +80,7 @@ async function stopAll(st, names) {
 }
 
 async function up(root, cfg, st, paths) {
-  if (!cfg.baseUrl) throw new Error('.claude/ai-dev-team.json: browser.baseUrl is not set');
+  if (!cfg.baseUrl) throw new Error('.claude/ai-dev-team.json: browser.baseUrl is not set' + cfg.moved);
   fs.mkdirSync(paths.dir, { recursive: true });
   const mine = [];
   const fail = async (msg) => {

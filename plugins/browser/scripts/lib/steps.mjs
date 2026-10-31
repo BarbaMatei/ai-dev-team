@@ -5,10 +5,11 @@ import { parseFakes } from './fakes.mjs';
 export const KEYS = ['Enter', 'Tab', 'Escape', 'Space', 'Backspace', 'ArrowUp', 'ArrowDown'];
 const ACTIONS = ['go', 'wait', 'until', 'click', 'type', 'press', 'upload', 'eval', 'shot', 'sleep'];
 const EXTRA = new Set(['text', 'files', 'timeoutMs']);
+const TOP = ['viewport', 'timeoutMs', 'fake', 'steps'];
 const bad = (msg) => Object.assign(new Error(msg), { code: 2 });
 const isStr = (v) => typeof v === 'string' && v !== '';
 
-function parseStep(raw, n, stepsDir, baseUrl, defaultTimeout) {
+function parseStep(raw, n, stepsDir, baseUrl, defaultTimeout, hint) {
   const err = (msg) => bad(`step ${n}: ${msg}`);
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw err('must be an object');
   const keys = Object.keys(raw).filter((k) => !EXTRA.has(k));
@@ -17,6 +18,8 @@ function parseStep(raw, n, stepsDir, baseUrl, defaultTimeout) {
   const action = keys[0];
   if (!ACTIONS.includes(action)) throw err(`unknown action "${action}"`);
   const arg = raw[action];
+  if (raw.text !== undefined && action !== 'type') throw err('"text" is only for type');
+  if (raw.files !== undefined && action !== 'upload') throw err('"files" is only for upload');
   const step = { n, action, arg, timeoutMs: raw.timeoutMs ?? defaultTimeout };
   if (!(typeof step.timeoutMs === 'number' && step.timeoutMs > 0)) throw err('timeoutMs must be a positive number');
   if (action === 'sleep') {
@@ -32,7 +35,7 @@ function parseStep(raw, n, stepsDir, baseUrl, defaultTimeout) {
   }
   if (action === 'go') {
     if (/^https?:\/\//.test(arg)) step.url = arg;
-    else if (!baseUrl) throw err(`go "${arg}" needs browser.baseUrl in .claude/ai-dev-team.json`);
+    else if (!baseUrl) throw err(`go "${arg}" needs browser.baseUrl in .claude/ai-dev-team.json${hint}`);
     else step.url = baseUrl.replace(/\/+$/, '') + (arg.startsWith('/') ? '' : '/') + arg;
   }
   if (action === 'upload') {
@@ -44,7 +47,7 @@ function parseStep(raw, n, stepsDir, baseUrl, defaultTimeout) {
   return step;
 }
 
-export function parseSteps(text, stepsDir, baseUrl) {
+export function parseSteps(text, stepsDir, baseUrl, hint = '') {
   let doc;
   try {
     doc = JSON.parse(text);
@@ -52,6 +55,8 @@ export function parseSteps(text, stepsDir, baseUrl) {
     throw bad(`steps file is not valid JSON: ${e.message}`);
   }
   if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) throw bad('steps file must be a JSON object');
+  const unknown = Object.keys(doc).find((k) => !TOP.includes(k));
+  if (unknown) throw bad(`steps file: unknown key "${unknown}"`);
   const size = /^(\d+)x(\d+)$/.exec(doc.viewport ?? '1280x800');
   if (!size) throw bad('viewport must look like 1280x800');
   const timeoutMs = doc.timeoutMs ?? 10000;
@@ -61,6 +66,6 @@ export function parseSteps(text, stepsDir, baseUrl) {
     viewport: [Number(size[1]), Number(size[2])],
     timeoutMs,
     fake: parseFakes(doc.fake ?? [], stepsDir),
-    steps: doc.steps.map((s, i) => parseStep(s, i + 1, stepsDir, baseUrl, timeoutMs)),
+    steps: doc.steps.map((s, i) => parseStep(s, i + 1, stepsDir, baseUrl, timeoutMs, hint)),
   };
 }

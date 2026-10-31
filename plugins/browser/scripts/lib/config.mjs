@@ -23,5 +23,7 @@ export function loadBrowser(root) {
     for (const k of ['command', 'cwd']) if (x[k] !== undefined && !isStr(x[k])) throw bad(`boot[${i}].${k} must be a string`);
     if (x.env !== undefined && (x.env === null || typeof x.env !== 'object' || Array.isArray(x.env))) throw bad(`boot[${i}].env must be an object`);
   });
-  return { ...e, boot, timeoutSec: e.timeoutSec ?? 120 };
+  const old = loadConfig(root).e2e;
+  const moved = old && typeof old === 'object' && (old.baseUrl || old.boot) ? '; the settings moved from the "e2e" key to "browser": rename the key' : '';
+  return { ...e, boot, timeoutSec: e.timeoutSec ?? 120, moved };
 }

@@ -84,7 +84,7 @@ else {
         } else if (method === 'Page.navigate') {
           if (mode === 'drop') return socket.destroy();
           if (mode === 'navfail') return reply({ frameId: 'F1', errorText: 'net::ERR_CONNECTION_REFUSED' });
-          reply({ frameId: 'F1' });
+          reply({ frameId: 'F1', loaderId: 'L1' });
           if (mode === 'eventsource') send({ method: 'Network.requestWillBeSent', params: { requestId: 'ES1', type: 'EventSource' }, sessionId });
           if (mode !== 'hang') send({ method: 'Page.loadEventFired', params: { timestamp: 1 }, sessionId });
         } else if (method === 'Page.captureScreenshot') {

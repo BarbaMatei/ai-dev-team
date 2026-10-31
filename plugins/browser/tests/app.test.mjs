@@ -273,5 +273,5 @@ test('an e2e key alone no longer configures the app: up exits 2 asking for brows
   fs.writeFileSync(path.join(dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ e2e: legacy }));
   const r = run(dir, ['up']);
   assert.equal(r.status, 2);
-  assert.equal(r.stderr.trim(), '.claude/ai-dev-team.json: browser.baseUrl is not set');
+  assert.equal(r.stderr.trim(), '.claude/ai-dev-team.json: browser.baseUrl is not set; the settings moved from the "e2e" key to "browser": rename the key');
 });

@@ -12,14 +12,14 @@ const KEY_INFO = {
   ArrowDown: { vk: 40 },
 };
 
-function within(promise, dl, message) {
+export function within(promise, dl, message) {
   let timer;
-  const timeout = new Promise((_, rej) => (timer = setTimeout(() => rej(Object.assign(new Error(message), { soft: true })), Math.max(dl.at - Date.now(), 1))));
+  const timeout = new Promise((_, rej) => (timer = setTimeout(() => rej(Object.assign(new Error(message), { soft: true, timeout: true })), Math.max(dl.at - Date.now(), 1))));
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 async function evaluate(page, expression, dl) {
-  const r = await within(page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }), dl, `evaluation timed out after ${dl.ms} ms`);
+  const r = await page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
   if (r.exceptionDetails) throw Object.assign(new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? 'evaluation failed'), { soft: true });
   return r.result?.value;
 }
@@ -32,7 +32,7 @@ async function poll(dl, message, probe, interval = 100) {
       if (v) return v;
     } catch (e) {
       if (!e.soft) throw e;
-      last = e;
+      if (!e.timeout) last = e;
     }
     if (Date.now() >= dl.at) throw new Error(last ? `${message}: ${clip(last.message)}` : message);
     await sleep(Math.min(interval, Math.max(dl.at - Date.now(), 1)));
@@ -45,11 +45,11 @@ const clock = (step) => ({ at: Date.now() + step.timeoutMs, ms: step.timeoutMs }
 const finder = (sel, body) => `(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null; ${body} })()`;
 const SHOWN = 'const r = e.getBoundingClientRect(), s = getComputedStyle(e); if (!r.width || !r.height || s.visibility === "hidden" || s.display === "none") return null;';
 const VISIBLE = (sel) => finder(sel, `${SHOWN} return true;`);
-const FOCUS = (sel) => finder(sel, `${SHOWN} e.scrollIntoView({ block: "center", inline: "center" }); e.focus(); if (e.select) e.select(); else if (e.isContentEditable) { const g = getSelection(); g.selectAllChildren(e); } return true;`);
-const LOCATE = (sel) =>
+const FOCUS = (sel) => finder(sel, `${SHOWN} e.scrollIntoView({ block: "center", inline: "center", behavior: "instant" }); e.focus(); if (e.select) e.select(); else if (e.isContentEditable) { const g = getSelection(); g.selectAllChildren(e); } return true;`);
+export const LOCATE = (sel) =>
   finder(
     sel,
-    `${SHOWN} e.scrollIntoView({ block: "center", inline: "center" }); const b = e.getBoundingClientRect(); const t = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2); const cover = t && t !== e && !e.contains(t) ? t.tagName.toLowerCase() + (t.id ? "#" + t.id : "") + (t.classList[0] ? "." + t.classList[0] : "") : null; return { x: b.x, y: b.y, width: b.width, height: b.height, cover };`,
+    `${SHOWN} e.scrollIntoView({ block: "center", inline: "center", behavior: "instant" }); const b = e.getBoundingClientRect(); const t = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2); if (!t) return null; const cover = t !== e && !e.contains(t) ? t.tagName.toLowerCase() + (t.id ? "#" + t.id : "") + (t.classList[0] ? "." + t.classList[0] : "") : null; return { x: b.x, y: b.y, width: b.width, height: b.height, cover };`,
   );
 
 export async function screenshot(page, file) {
@@ -58,8 +58,7 @@ export async function screenshot(page, file) {
   fs.writeFileSync(file, Buffer.from(data, 'base64'));
 }
 
-async function go(page, step) {
-  const dl = clock(step);
+async function go(page, step, dl) {
   const { net } = page;
   net.open.clear();
   net.skip.clear();
@@ -68,9 +67,9 @@ async function go(page, step) {
     page.closed.then(() => rej(new Error('connection closed')));
   });
   loaded.catch(() => {});
-  const nav = await within(page.send('Page.navigate', { url: step.url }), dl, `navigation timed out after ${dl.ms} ms`);
+  const nav = await page.send('Page.navigate', { url: step.url });
   if (nav.errorText) throw new Error(`navigation failed: ${nav.errorText}`);
-  await within(loaded, dl, `no load event after ${dl.ms} ms`);
+  if (nav.loaderId) await within(loaded, dl, `no load event after ${dl.ms} ms`);
   net.last = Date.now();
   while (Date.now() < dl.at && !(net.open.size === 0 && Date.now() - net.last >= 500)) await sleep(50);
 }
@@ -82,8 +81,8 @@ async function press(page, key) {
   await page.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
 }
 
-async function upload(page, step) {
-  const found = await poll(clock(step), `not found after ${step.timeoutMs} ms`, async () => {
+async function upload(page, step, dl) {
+  const found = await poll(dl, `not found after ${step.timeoutMs} ms`, async () => {
     const { root } = await page.send('DOM.getDocument', { depth: 0 });
     const { nodeId } = await page.send('DOM.querySelector', { nodeId: root.nodeId, selector: step.arg });
     return nodeId;
@@ -91,19 +90,22 @@ async function upload(page, step) {
   await page.send('DOM.setFileInputFiles', { files: step.files, nodeId: found });
 }
 
-export async function runStep(page, step, ctx) {
+const TIMED_OUT = { 'Runtime.evaluate': (ms) => `evaluation timed out after ${ms} ms`, 'Page.navigate': (ms) => `navigation timed out after ${ms} ms` };
+
+export async function runStep(raw, step, ctx) {
   const { arg } = step;
+  const dl = clock(step);
+  const page = { ...raw, send: (m, p) => within(raw.send(m, p), dl, (TIMED_OUT[m] ?? ((ms) => `${m} timed out after ${ms} ms`))(dl.ms)) };
   const notFound = `not found after ${step.timeoutMs} ms`;
-  if (step.action === 'go') return go(page, step);
+  if (step.action === 'go') return go(page, step, dl);
   if (step.action === 'sleep') return sleep(arg);
   if (step.action === 'press') return press(page, arg);
-  if (step.action === 'upload') return upload(page, step);
+  if (step.action === 'upload') return upload(page, step, dl);
   if (step.action === 'shot') {
     const file = path.join(ctx.outDir, `${arg}.png`);
     await screenshot(page, file);
     return ctx.out(`shot ${file}`);
   }
-  const dl = clock(step);
   if (step.action === 'eval') {
     const json = JSON.stringify((await evaluate(page, arg, dl)) ?? null);
     return ctx.out(`eval ${step.n} ${json.slice(0, 2000)}`);

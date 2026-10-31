@@ -5,7 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 import { matchFake } from '../scripts/lib/fakes.mjs';
+import { LOCATE } from '../scripts/lib/actions.mjs';
 
 const script = fileURLToPath(new URL('../scripts/drive.mjs', import.meta.url));
 const fake = fileURLToPath(new URL('./fake-cdp.mjs', import.meta.url));
@@ -307,7 +309,9 @@ test('a cross-origin request gets CORS headers for its Origin, and its OPTIONS p
   assert.equal(pre.responseCode, 204);
   assert.equal(pre.body, '');
   assert.equal(h(pre)['Access-Control-Allow-Headers'], 'authorization');
-assert.equal(h(pre)['Access-Control-Allow-Origin'], 'http://app');  assert.equal(h(pre)['Access-Control-Allow-Credentials'], 'true');  assert.equal(h(pre)['Access-Control-Allow-Methods'], 'GET,POST,PUT,PATCH,DELETE');
+  assert.equal(h(pre)['Access-Control-Allow-Origin'], 'http://app');
+  assert.equal(h(pre)['Access-Control-Allow-Credentials'], 'true');
+  assert.equal(h(pre)['Access-Control-Allow-Methods'], 'GET,POST,PUT,PATCH,DELETE');
   assert.equal(post.responseCode, 202);
   assert.equal(h(post)['Access-Control-Allow-Origin'], 'http://app');
   assert.equal(h(post)['Access-Control-Allow-Credentials'], 'true');
@@ -404,4 +408,122 @@ test('a rejected continue of an unmatched request is not a fake-error', () => {
   assert.equal(r.status, 0, r.stderr);
   assert.equal(lines(r).some((l) => l.startsWith('fake-error')), false);
   assert.equal(fetchCalls(t.log, 'Fetch.failRequest').length, 0);
+});
+
+function locateIn(hit) {
+  const scrolls = [];
+  const el = {
+    getBoundingClientRect: () => ({ x: 10, y: 20, width: 100, height: 40 }),
+    scrollIntoView: (o) => scrolls.push(o),
+    contains: (x) => x === el,
+  };
+  const document = { querySelector: () => el, elementFromPoint: () => (hit === 'self' ? el : hit) };
+  const result = vm.runInNewContext(LOCATE('#b'), { document, getComputedStyle: () => ({ visibility: 'visible', display: 'block' }) });
+  return { result, scrolls };
+}
+
+test('click scrolls instantly so smooth scrolling cannot move the element after its position is read', () => {
+  const { scrolls } = locateIn('self');
+  assert.deepEqual(JSON.parse(JSON.stringify(scrolls)), [{ block: 'center', inline: 'center', behavior: 'instant' }]);
+});
+
+test('click is not located while nothing is at its centre yet, so the step retries', () => {
+  assert.equal(locateIn(null).result, null);
+  assert.equal(locateIn('self').result.cover, null);
+});
+
+test('a JavaScript dialog is accepted, logged, and the run continues', () => {
+  const t = setup([{ click: '#b' }, { eval: '1' }], {
+    cdp: {
+      replies: { 'Runtime.evaluate': [val({ x: 10, y: 20, width: 100, height: 40 }), val(1)] },
+      events: { 'Input.dispatchMouseEvent': [{ method: 'Page.javascriptDialogOpening', params: { type: 'confirm', message: 'sure?' } }] },
+    },
+  });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(lines(r).includes('dialog confirm sure?'), r.stdout);
+  const [h] = calls(t.log).filter((c) => c.method === 'Page.handleJavaScriptDialog');
+  assert.deepEqual(h.params, { accept: true });
+});
+
+test('a browser call that never answers fails its step within timeoutMs, exits 1 and closes the browser', () => {
+  const t = setup([{ click: '#b', timeoutMs: 300 }], {
+    cdp: {
+      replies: {
+        'Runtime.evaluate': [val({ x: 10, y: 20, width: 100, height: 40 })],
+        'Input.dispatchMouseEvent': [{ hang: true }],
+      },
+    },
+  });
+  const start = Date.now();
+  const r = run(t);
+  assert.ok(Date.now() - start < 5000);
+  assert.equal(r.status, 1);
+  assert.ok(lines(r).some((l) => l.startsWith('fail 1 click #b: Input.dispatchMouseEvent timed out after 300 ms')), r.stdout);
+  assert.ok(fs.existsSync(path.join(t.out, 'fail-1.png')));
+  assert.equal(calls(t.log).at(-1).method, 'Browser.close');
+});
+
+test('a page that never fires its load event fails go within timeoutMs with a screenshot', () => {
+  const t = setup([{ go: '/x', timeoutMs: 300 }]);
+  t.env.FAKE_CDP_MODE = 'hang';
+  const start = Date.now();
+  const r = run(t);
+  assert.ok(Date.now() - start < 5000);
+  assert.equal(r.status, 1);
+  assert.ok(lines(r).includes('fail 1 go /x: no load event after 300 ms'), r.stdout);
+  assert.ok(fs.existsSync(path.join(t.out, 'fail-1.png')));
+});
+
+test('go to another hash of the same document does not wait for a load event', () => {
+  const t = setup([{ go: '/a#/two', timeoutMs: 1500 }], { cdp: { replies: { 'Page.navigate': [{ frameId: 'F1' }] } } });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test('a failed resource load names its address in the console line', () => {
+  const t = setup([{ sleep: 100 }], {
+    cdp: { events: { 'Log.enable': [{ method: 'Log.entryAdded', params: { entry: { level: 'error', text: 'Failed to load resource: 404', url: 'http://x/a.png' } } }] } },
+  });
+  const r = run(t);
+  assert.ok(lines(r).includes('console error Failed to load resource: 404 http://x/a.png'), r.stdout);
+});
+
+test('console, exception and failed lines are capped at 50 on stdout while drive.log keeps all', () => {
+  const ex = { method: 'Runtime.exceptionThrown', params: { exceptionDetails: { text: 'boom' } } };
+  const t = setup([{ sleep: 100 }], { cdp: { events: { 'Runtime.enable': Array.from({ length: 60 }, () => ex) } } });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(lines(r).filter((l) => l.startsWith('exception ')).length, 50);
+  assert.ok(lines(r).includes('console … 10 more in drive.log'), r.stdout);
+  assert.equal(fs.readFileSync(path.join(t.out, 'drive.log'), 'utf8').split('\n').filter((l) => l.startsWith('exception ')).length, 60);
+});
+
+test('an unknown top-level key exits 2 before any browser starts', () => {
+  const t = setup([{ go: '/' }], { doc: { fakes: [] } });
+  const r = run(t);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /steps file: unknown key "fakes"/);
+  assert.equal(fs.existsSync(t.log), false);
+});
+
+test('text on a step other than type and files on a step other than upload exit 2', () => {
+  for (const [step, re] of [
+    [{ click: '#a', text: 'x' }, /step 1: "text" is only for type/],
+    [{ click: '#a', files: ['a'] }, /step 1: "files" is only for upload/],
+  ]) {
+    const t = setup([step]);
+    const r = run(t);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, re);
+    assert.equal(fs.existsSync(t.log), false);
+  }
+});
+
+test('a missing browser.baseUrl with the old e2e key present tells to rename the key', () => {
+  const t = setup([{ go: '/x' }], { baseUrl: null });
+  fs.writeFileSync(path.join(t.dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ e2e: { baseUrl: 'http://localhost:9' }, browser: { exe: [process.execPath, fake] } }));
+  const r = run(t);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /browser\.baseUrl.*; the settings moved from the "e2e" key to "browser": rename the key/);
 });

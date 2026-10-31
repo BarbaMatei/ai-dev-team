@@ -52,7 +52,7 @@ export function findBrowser(cfg) {
 
 export async function launch(browser) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-profile-'));
-  const flags = ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'];
+  const flags = ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run', '--disable-background-networking', '--disable-component-update', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'];
   const proc = spawn(browser.exe, [...browser.args, ...flags], { stdio: 'ignore', windowsHide: true, detached: process.platform !== 'win32' });
   let exited = false;
   proc.on('exit', () => (exited = true));
@@ -118,7 +118,7 @@ export async function openPage(cdp) {
   });
   await cdp.send('Page.enable', {}, sessionId);
   await cdp.send('Network.enable', {}, sessionId);
-  return { net, closed: cdp.closed, send: (m, p) => cdp.send(m, p, sessionId) };
+  return { net, sessionId, closed: cdp.closed, send: (m, p) => cdp.send(m, p, sessionId) };
 }
 
 export async function shoot(page, url, file, [w, h], wait) {
