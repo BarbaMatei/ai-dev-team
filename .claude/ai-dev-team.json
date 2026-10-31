@@ -1,0 +1,8 @@
+{
+  "release": {
+    "packages": ["plugins/*"],
+    "versionFile": ".claude-plugin/plugin.json",
+    "tag": "{name}-v{version}",
+    "patch": "any"
+  }
+}

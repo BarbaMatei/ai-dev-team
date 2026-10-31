@@ -1,6 +1,6 @@
 {
   "name": "ai-dev-team",
-  "description": "Small standalone Claude Code plugins: guardrails, review, spec-upkeep, test-quality, metrics, browser, e2e, ui-review and architect.",
+  "description": "Small standalone Claude Code plugins: guardrails, review, spec-upkeep, test-quality, metrics, browser, e2e, ui-review, architect and release.",
   "owner": { "name": "Matei Barba" },
   "plugins": [
     {
@@ -47,6 +47,11 @@
       "name": "architect",
       "source": "./plugins/architect",
       "description": "Proposes features, improvements and gaps from a project's code, specs and open issues. Every proposal's cites are checked by script, and the kept ones are filed as issues for specsmd inception. Never edits specs."
+    },
+    {
+      "name": "release",
+      "source": "./plugins/release",
+      "description": "Works out each package's next version from conventional commits, writes its version file, changelog and tag, and ships a GitHub action that pushes the release and creates the GitHub release."
     }
   ]
 }
