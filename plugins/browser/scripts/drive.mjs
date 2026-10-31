@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fail, findBrowser, launch, openPage } from './lib/browser.mjs';
 import { runStep, screenshot } from './lib/actions.mjs';
+import { bodyOf, fulfil, matchFake } from './lib/fakes.mjs';
 import { loadBrowser } from './lib/config.mjs';
 import { projectRoot } from './lib/project.mjs';
 import { parseSteps } from './lib/steps.mjs';
@@ -17,7 +18,7 @@ const isNoisy = (level) => level === 'error' || level === 'warning';
 
 function watch(cdp, emit) {
   const reqs = new Map();
-  const stats = { api: 0 };
+  const stats = { api: 0, faked: 0 };
   cdp.on((method, p) => {
     if (method === 'Runtime.consoleAPICalled') {
       if (isNoisy(p.type)) emit(`console ${p.type} ${clip(p.args.map(argValue).join(' '), 300)}`);
@@ -80,6 +81,22 @@ async function main() {
     await page.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 });
     await page.send('Runtime.enable');
     await page.send('Log.enable');
+    if (plan.fake.length) {
+      session.cdp.on((method, p) => {
+        if (method !== 'Fetch.requestPaused') return;
+        const { requestId, request } = p;
+        const fake = matchFake(plan.fake, request.url, request.method);
+        let answer;
+        if (!fake) answer = page.send('Fetch.continueRequest', { requestId });
+        else {
+          stats.faked++;
+          emit(`fake ${request.method} ${request.url}`);
+          answer = page.send('Fetch.fulfillRequest', { requestId, ...fulfil(request, fake, bodyOf(fake)) });
+        }
+        answer.catch(() => {});
+      });
+      await page.send('Fetch.enable', { patterns: plan.fake.map((f) => ({ urlPattern: f.url, requestStage: 'Request' })) });
+    }
 
     let done = 0;
     for (const step of plan.steps) {
@@ -95,7 +112,7 @@ async function main() {
       }
     }
     if (hidden) process.stdout.write(`api … ${hidden} more in drive.log\n`);
-    if (process.exitCode !== 1) emit(`done ${done} steps, ${stats.api} api requests, log ${logFile}`);
+    if (process.exitCode !== 1) emit(`done ${done} steps, ${stats.api} api requests, ${stats.faked} faked, log ${logFile}`);
   } catch (e) {
     process.exitCode = session ? 1 : typeof e.code === 'number' ? e.code : 2;
     process.stderr.write(`${e.message}\n`);

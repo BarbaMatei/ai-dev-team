@@ -183,7 +183,7 @@ test('console errors, exceptions, failed requests and API responses are printed;
   assert.equal(out.filter((l) => /^api \d+ /.test(l)).length, 50);
   assert.ok(out.includes('api … 10 more in drive.log'), r.stdout);
   assert.ok(out.includes('api 201 POST http://x/api/0'));
-  assert.match(out.at(-1), /^done 1 steps, 60 api requests, log .*drive\.log$/);
+  assert.match(out.at(-1), /^done 1 steps, 60 api requests, 0 faked, log .*drive\.log$/);
   const log = fs.readFileSync(path.join(t.out, 'drive.log'), 'utf8').split(/\r?\n/);
   assert.equal(log.filter((l) => /^api \d+ /.test(l)).length, 60);
 });
@@ -252,4 +252,99 @@ test('SIGTERM mid-step closes the browser, removes the profile and exits 143', a
   assert.equal(await done, 143);
   assert.throws(() => process.kill(Number(fs.readFileSync(`${c.log}.pid`, 'utf8')), 0));
   assert.equal(fs.existsSync(fs.readFileSync(`${c.log}.udd`, 'utf8')), false);
+});
+
+const paused = (requestId, method, url, headers = {}) => ({
+  method: 'Fetch.requestPaused',
+  params: { requestId, request: { method, url, headers } },
+});
+const fetchCalls = (log, method) => calls(log).filter((c) => c.method === method);
+
+test('a fake is enabled with its pattern and answers a matching request with its status, JSON body and content type', () => {
+  const t = setup([{ sleep: 200 }], {
+    doc: { fake: [{ url: 'http://x/api/orders?*', method: 'get', status: 201, json: { items: [1] } }] },
+    cdp: { events: { 'Fetch.enable': [paused('R1', 'GET', 'http://x/api/orders?page=2')] } },
+  });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(fetchCalls(t.log, 'Fetch.enable')[0].params.patterns, [{ urlPattern: 'http://x/api/orders?*', requestStage: 'Request' }]);
+  const [f] = fetchCalls(t.log, 'Fetch.fulfillRequest');
+  assert.equal(f.params.requestId, 'R1');
+  assert.equal(f.params.responseCode, 201);
+  assert.equal(Buffer.from(f.params.body, 'base64').toString(), '{"items":[1]}');
+  assert.deepEqual(f.params.responseHeaders, [{ name: 'Content-Type', value: 'application/json' }]);
+});
+
+test('a paused request whose method no fake matches continues unchanged', () => {
+  const t = setup([{ sleep: 200 }], {
+    doc: { fake: [{ url: 'http://x/api/*', method: 'GET', text: 'hi' }] },
+    cdp: { events: { 'Fetch.enable': [paused('R1', 'POST', 'http://x/api/orders')] } },
+  });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(fetchCalls(t.log, 'Fetch.continueRequest').map((c) => c.params), [{ requestId: 'R1' }]);
+  assert.equal(fetchCalls(t.log, 'Fetch.fulfillRequest').length, 0);
+});
+
+test('a cross-origin request gets CORS headers for its Origin, and its OPTIONS preflight gets 204', () => {
+  const url = 'http://x/api/orders';
+  const t = setup([{ sleep: 200 }], {
+    doc: { fake: [{ url, method: 'POST', status: 202, json: {} }] },
+    cdp: {
+      events: {
+        'Fetch.enable': [
+          paused('R1', 'OPTIONS', url, { Origin: 'http://app', 'Access-Control-Request-Headers': 'authorization' }),
+          paused('R2', 'POST', url, { origin: 'http://app' }),
+        ],
+      },
+    },
+  });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  const [pre, post] = fetchCalls(t.log, 'Fetch.fulfillRequest').map((c) => c.params);
+  const h = (p) => Object.fromEntries(p.responseHeaders.map((x) => [x.name, x.value]));
+  assert.equal(pre.responseCode, 204);
+  assert.equal(pre.body, '');
+  assert.equal(h(pre)['Access-Control-Allow-Headers'], 'authorization');
+  assert.equal(post.responseCode, 202);
+  assert.equal(h(post)['Access-Control-Allow-Origin'], 'http://app');
+  assert.equal(h(post)['Access-Control-Allow-Credentials'], 'true');
+  assert.equal(h(post)['Access-Control-Allow-Headers'], '*');
+  assert.equal(h(post)['Access-Control-Allow-Methods'], 'GET,POST,PUT,PATCH,DELETE');
+});
+
+test("a file fake sends the file's bytes with its type", () => {
+  const t = setup([{ sleep: 200 }], {
+    doc: { fake: [{ url: 'http://x/img/*', file: 'pic.jpg' }] },
+    cdp: { events: { 'Fetch.enable': [paused('R1', 'GET', 'http://x/img/a')] } },
+  });
+  fs.writeFileSync(path.join(t.dir, 'pic.jpg'), Buffer.from([0xff, 0xd8, 0x01]));
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  const [f] = fetchCalls(t.log, 'Fetch.fulfillRequest');
+  assert.deepEqual([...Buffer.from(f.params.body, 'base64')], [0xff, 0xd8, 0x01]);
+  assert.deepEqual(f.params.responseHeaders, [{ name: 'Content-Type', value: 'image/jpeg' }]);
+});
+
+test('each faked request prints a fake line and the done line counts them', () => {
+  const t = setup([{ sleep: 200 }], {
+    doc: { fake: [{ url: 'http://x/api/*', text: 'ok' }] },
+    cdp: { events: { 'Fetch.enable': [paused('R1', 'GET', 'http://x/api/a'), paused('R2', 'PUT', 'http://x/api/b')] } },
+  });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  const out = lines(r);
+  assert.ok(out.includes('fake GET http://x/api/a'), r.stdout);
+  assert.ok(out.includes('fake PUT http://x/api/b'), r.stdout);
+  assert.match(out.at(-1), /^done 1 steps, 0 api requests, 2 faked, log /);
+});
+
+test('a fake with two body kinds or none exits 2 naming it', () => {
+  for (const bad of [{ url: 'http://x/*', json: {}, text: 'a' }, { url: 'http://x/*' }]) {
+    const t = setup([{ go: '/' }], { doc: { fake: [{ url: 'http://x/*', text: 'ok' }, bad] } });
+    const r = run(t);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /fake 2:/);
+    assert.equal(fs.existsSync(t.log), false);
+  }
 });

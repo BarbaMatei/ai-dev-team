@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseFakes } from './fakes.mjs';
 
 export const KEYS = ['Enter', 'Tab', 'Escape', 'Space', 'Backspace', 'ArrowUp', 'ArrowDown'];
 const ACTIONS = ['go', 'wait', 'until', 'click', 'type', 'press', 'upload', 'eval', 'shot', 'sleep'];
@@ -59,7 +60,7 @@ export function parseSteps(text, stepsDir, baseUrl) {
   return {
     viewport: [Number(size[1]), Number(size[2])],
     timeoutMs,
-    fake: doc.fake ?? [],
+    fake: parseFakes(doc.fake ?? [], stepsDir),
     steps: doc.steps.map((s, i) => parseStep(s, i + 1, stepsDir, baseUrl, timeoutMs)),
   };
 }

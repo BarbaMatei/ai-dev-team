@@ -39,6 +39,8 @@ Run `app.mjs up` and `drive.mjs` with the Bash tool timeout set to 600000 ms. If
 - `shot`: a name (`[\w.-]+`); saves `<folder>/<name>.png`.
 - `sleep`: milliseconds.
 
+`fake` (optional list, top level) answers chosen requests with a made-up reply: `{ "url": "*/api/orders?*", "method": "GET", "status": 200, "json": {...} }`. `url` is a wildcard (`*` any run, `?` one character) that must match the whole request address; `method` is optional; give exactly one of `json`, `text` or `file` (path relative to the steps file, must exist); `type` overrides the content type. First match wins; other requests go through. Each answer prints `fake <METHOD> <url>`. Show scale or rare data by faking replies, never by changing real data.
+
 Wait with `wait` or `until`, never `sleep`, except for animations.
 
 ## Reply
