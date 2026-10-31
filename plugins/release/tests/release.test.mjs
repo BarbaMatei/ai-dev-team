@@ -12,7 +12,7 @@ let n = 0;
 
 function cleanEnv() {
   const env = { ...process.env };
-  for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
+  for (const k of Object.keys(env)) if (k.startsWith('GIT_') || k.startsWith('GITHUB_')) delete env[k];
   delete env.EMAIL;
   return env;
 }
@@ -315,4 +315,13 @@ test('a CRLF changelog and a CRLF version file keep their line endings', () => {
   assert.equal(run(dir, ['--write']).code, 0);
   for (const f of ['package.json', 'CHANGELOG.md']) assert.doesNotMatch(read(dir, f), /(?<!\r)\n/);
   assert.match(read(dir, 'package.json'), /"version": "0\.1\.1"/);
+});
+
+test('with the GitHub repository variables set the changelog lines link to the commit', () => {
+  const dir = single();
+  commit(dir, 'fix: linked');
+  const sha = git(dir, 'rev-parse', 'HEAD');
+  const r = run(dir, ['--write'], { GITHUB_SERVER_URL: 'https://example.test', GITHUB_REPOSITORY: 'o/r' });
+  assert.equal(r.code, 0, r.err);
+  assert.ok(read(dir, 'CHANGELOG.md').includes(`- linked ([${sha.slice(0, 7)}](https://example.test/o/r/commit/${sha}))`));
 });
