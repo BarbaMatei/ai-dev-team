@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { matchFake } from '../scripts/lib/fakes.mjs';
 
 const script = fileURLToPath(new URL('../scripts/drive.mjs', import.meta.url));
 const fake = fileURLToPath(new URL('./fake-cdp.mjs', import.meta.url));
@@ -306,6 +307,7 @@ test('a cross-origin request gets CORS headers for its Origin, and its OPTIONS p
   assert.equal(pre.responseCode, 204);
   assert.equal(pre.body, '');
   assert.equal(h(pre)['Access-Control-Allow-Headers'], 'authorization');
+assert.equal(h(pre)['Access-Control-Allow-Origin'], 'http://app');  assert.equal(h(pre)['Access-Control-Allow-Credentials'], 'true');  assert.equal(h(pre)['Access-Control-Allow-Methods'], 'GET,POST,PUT,PATCH,DELETE');
   assert.equal(post.responseCode, 202);
   assert.equal(h(post)['Access-Control-Allow-Origin'], 'http://app');
   assert.equal(h(post)['Access-Control-Allow-Credentials'], 'true');
@@ -347,4 +349,26 @@ test('a fake with two body kinds or none exits 2 naming it', () => {
     assert.match(r.stderr, /fake 2:/);
     assert.equal(fs.existsSync(t.log), false);
   }
+});
+
+test('a fake whose reply cannot be built prints fake-error and fails the request instead of leaving it paused', () => {
+  const t = setup([{ sleep: 200 }], {
+    doc: { fake: [{ url: 'http://x/img/*', file: 'pic.jpg' }] },
+    cdp: { events: { 'Fetch.enable': [paused('R9', 'GET', 'http://x/img/a')] } },
+  });
+  fs.mkdirSync(path.join(t.dir, 'pic.jpg')); // exists at parse time, but reading a directory throws
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(lines(r).some((l) => l.startsWith('fake-error GET http://x/img/a: ')), r.stdout);
+  assert.deepEqual(fetchCalls(t.log, 'Fetch.failRequest').map((c) => c.params), [{ requestId: 'R9', errorReason: 'Failed' }]);
+  assert.equal(fetchCalls(t.log, 'Fetch.fulfillRequest').length, 0);
+});
+
+test('matchFake treats only * and ? as wildcards and matches the whole address', () => {
+  const hit = (url, probe) => matchFake([{ url }], probe, 'GET') !== undefined;
+  assert.equal(hit('http://a.test/x+y*', 'http://aXtest/xxy'), false);
+  assert.equal(hit('http://a.test/x+y*', 'http://a.test/x+y/more'), true);
+  assert.equal(hit('http://a.test/x?', 'http://a.test/xa'), true);
+  assert.equal(hit('http://a.test/x?', 'http://a.test/x'), false);
+  assert.equal(hit('http://a.test/x?', 'http://a.test/xab'), false);
 });

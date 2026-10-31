@@ -45,4 +45,4 @@ Wait with `wait` or `until`, never `sleep`, except for animations.
 
 ## Reply
 
-The script's stdout exactly as printed (lines `step`, `eval`, `shot`, `console`, `exception`, `api`, `failed`, `fail`, `done`), then the folder's full path. `drive.log` in the folder holds every request.
+The script's stdout exactly as printed (lines `step`, `eval`, `shot`, `console`, `exception`, `api`, `failed`, `fake`, `fake-error`, `fail`, `done`), then the folder's full path. `drive.log` in the folder holds every request.

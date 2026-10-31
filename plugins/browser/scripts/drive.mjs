@@ -82,18 +82,20 @@ async function main() {
     await page.send('Runtime.enable');
     await page.send('Log.enable');
     if (plan.fake.length) {
-      session.cdp.on((method, p) => {
+      session.cdp.on(async (method, p) => {
         if (method !== 'Fetch.requestPaused') return;
         const { requestId, request } = p;
-        const fake = matchFake(plan.fake, request.url, request.method);
-        let answer;
-        if (!fake) answer = page.send('Fetch.continueRequest', { requestId });
-        else {
+        try {
+          const fake = matchFake(plan.fake, request.url, request.method);
+          if (!fake) return await page.send('Fetch.continueRequest', { requestId });
+          const reply = fulfil(request, fake, bodyOf(fake));
           stats.faked++;
           emit(`fake ${request.method} ${request.url}`);
-          answer = page.send('Fetch.fulfillRequest', { requestId, ...fulfil(request, fake, bodyOf(fake)) });
+          await page.send('Fetch.fulfillRequest', { requestId, ...reply });
+        } catch (e) {
+          emit(`fake-error ${request.method} ${request.url}: ${clip(e.message, 300)}`);
+          await page.send('Fetch.failRequest', { requestId, errorReason: 'Failed' }).catch(() => {});
         }
-        answer.catch(() => {});
       });
       await page.send('Fetch.enable', { patterns: plan.fake.map((f) => ({ urlPattern: f.url, requestStage: 'Request' })) });
     }
