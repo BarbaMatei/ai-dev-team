@@ -1,0 +1,29 @@
+name: release
+on:
+  push:
+    branches: [main]
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  test:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release)') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test "plugins/*/tests/*.test.mjs" "tests/*.test.mjs"
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+      - uses: ./plugins/release

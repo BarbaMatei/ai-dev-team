@@ -1,0 +1,8 @@
+{
+  "name": "release",
+  "version": "0.1.0",
+  "description": "Automatic semantic versioning: works out each package's next version from conventional commits, updates its version file and changelog, and makes one release commit and one tag per release.",
+  "author": { "name": "Matei Barba" },
+  "license": "MIT",
+  "repository": "https://github.com/BarbaMatei/ai-dev-team"
+}
