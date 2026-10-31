@@ -1,6 +1,6 @@
 ---
 name: review-bolt
-description: Use when a bolt's (or any branch's) code is complete and its tests pass, before opening the pull request. Simplifies the change, runs at most two code-review rounds in which only findings proven by a failing test count, fixes the proven bugs, checks each regression test with mutate-check and writes the one-page PR body the owner reads. Args - [--base <ref>] [--no-pr].
+description: Use when a bolt's (or any branch's) code is complete and its tests pass, before opening the pull request. Simplifies the change, runs at most two code-review rounds in which only findings proven by a failing test count, fixes the proven bugs, checks each regression test with mutate-check and writes the one-page PR body the owner reads. Args - [--base <ref>] [--no-pr] [--ask].
 ---
 
 # Review bolt
@@ -9,13 +9,13 @@ You review one finished branch (a bolt = one unit of work on its own branch, rev
 
 **Skills and subagents you call return intermediate results: after each one, continue with the next step. Your reply ends only at the last step.**
 
-- **Args:** `<base>` = `--base <ref>`, else `git merge-base HEAD origin/HEAD`, else `main`. `--no-pr`: write the PR body file only; push nothing, create no PR, file no issues (list them in the body instead).
+- **Args:** `<base>` = `--base <ref>`, else `git merge-base HEAD origin/HEAD`, else `main`. `--no-pr`: write the PR body file only; push nothing, create no PR, file no issues (list them in the body instead). `--ask`: every fix of a proven bug waits for the owner's word (see Ask); simplify still commits on its own.
 - **Default branch:** `git symbolic-ref --short refs/remotes/origin/HEAD` without the `origin/` prefix; if that fails, `main`.
 - **Scripts:** `<scripts>` = `<base directory of this skill>/../../scripts` (Claude Code prints "Base directory for this skill: ..." when this skill loads). Run them from the project root.
 - **Temp files:** `<tmp>` = the session's scratchpad directory if Claude Code lists one, else the OS temp folder (`node -e "console.log(require('os').tmpdir())"`); never inside `.git` or the working tree. PR body file = `<tmp>/review-bolt-pr-<branch with / replaced by ->.md`.
 - **Config:** `<project>/.claude/ai-dev-team.json`: `tests` (each `<kind>` has a `command` with `{filter}` and an optional `cwd`), `bugs.label` (default `bug`).
 - **Built-ins:** invoke `simplify` and `code-review` with the Skill tool by those plain names: the built-in `code-review`, never a plugin's `code-review:code-review`. `security-review` runs only inside a subagent (step 7): it takes over the context it runs in.
-- **Keep for the PR body:** the round count; every PROVEN, UNVERIFIED, BY-DESIGN and `discarded:` line (sum the counts over rounds); every `UPDATED-TEST` line; per fix its `file:line`, "now" and pre-fix text, `<kind>`, `<filter>`, mutate-check verdict; every "Needs owner" item.
+- **Keep for the PR body:** the round count; every PROVEN, UNVERIFIED, BY-DESIGN and `discarded:` line (sum the counts over rounds); every `UPDATED-TEST` line; per fix its `file:line`, "now" and pre-fix text, `<kind>`, `<filter>`, mutate-check verdict; the round-2 "outside the fix lines" count; with `--ask`, the owner's word on each fix; every "Needs owner" item.
 
 ## Start
 
@@ -52,6 +52,12 @@ Test: run only it: <command> in <dir>, with {filter} replaced by <filter>. It fa
 
 10. STUCK → copy the proving test into "Needs owner" as a code block with the default you would take, then remove that test from the tree.
 
+## Ask — only with `--ask`
+
+A. Before step 9, `<fixbase>` = `git rev-parse HEAD`. After each FIXED reply (steps 9, 12 and 15; one step-12 fixer's sites count as one bug), before the next fixer: save `git diff -- <the production files it changed>` to `<tmp>/review-bolt-fix-<n>.patch`, then `git checkout -- <those files>`; the proving test stays.
+B. Present it as `fix-findings` presents a bug only a test shows (`<base directory of this skill>/../fix-findings/presentation.md`, "One message"): one bug per message, its old and new code from the patch, ending "Approve?". Wait for the word; approval of one bug never approves the next.
+C. Yes → `git apply <patch>`, run the proving test (it must pass), commit that fix and its test alone. No → the proving test goes under "Needs owner" as a code block with the owner's words, then is removed from the tree.
+
 ## Same bug nearby
 
 11. Per round-1 PROVEN line: `node "<scripts>/areas.mjs" nearby --pattern "<regex>" --max 10 --base <base>`. Skip the lines already fixed. Exit 3, or a pattern that does not match the pre-fix text → build a narrower regex from the pre-fix text and the claim, run it the same way, and say so in the PR body.
@@ -60,13 +66,13 @@ Test: run only it: <command> in <dir>, with {filter} replaced by <filter>. It fa
 
 ## Round 2 — only if steps 9-12 changed code
 
-14. Invoke `code-review` with args `medium` and no target while the fixes are uncommitted, so the current diff is the fix lines. Rounds = 2.
-15. Invoke `review:prove-findings` with args `base <base>, uncommitted changes only`; fix each PROVEN line with steps 9-10.
+14. Write the fix lines to `<tmp>/review-bolt-fixes-<branch with / replaced by ->.diff`: `git diff HEAD -U0` (with `--ask`: `git diff <fixbase> -U0`). Invoke `code-review` with args `medium` and no target while the fixes are uncommitted (with `--ask`: `medium <fixbase>...HEAD`). Keep only findings whose `file:line` lies inside a hunk of that file and that do not repeat a round-1 finding (same file, same claim); drop the rest and count them for the PR body as "outside the fix lines". Rounds = 2.
+15. Invoke `review:prove-findings` on the kept findings with args `base <base>, uncommitted changes only` (with `--ask`: `base <fixbase>`); fix each PROVEN line with steps 9-10 (and Ask).
 16. No round 3 and no re-review: anything still open goes under "Needs owner".
 
 ## Commit and check
 
-17. Run every regression test, scoped, plus the scoped tests covering every file the fixes changed (same scoping as step 5). One fails → back to that fixer once (steps 9-10); still failing → "Needs owner". Then commit with a one-line conventional message.
+17. Run every regression test, scoped, plus the scoped tests covering every file the fixes changed (same scoping as step 5). One fails → back to that fixer once (steps 9-10); still failing → "Needs owner". Then commit what is uncommitted with a one-line conventional message (with `--ask` the approved fixes are already committed).
 18. Per fix: `<kind>` is `-` → record `not mutate-checkable`. Else confirm the "now" text is still at `<file:line>` (re-find it if lines moved), then `node "<scripts>/mutate-check.mjs" --file <file> --line <n> --replace "<pre-fix text>" --kind <kind> --test "<filter>"`, quoted so the shell passes both texts unchanged; empty pre-fix → omit `--replace`.
 19. `NOT GUARDED` → once per fix, one fresh sonnet Agent: "This test still passes when line <n> of <file> becomes <pre-fix>. Strengthen only the test so it fails then and passes now; run it; do not commit." Commit, re-run mutate-check once; still not `GUARDED` → "Needs owner". `INVALID: build broke` → retry once with a `--replace` that compiles. Record each final verdict.
 20. Per PROVEN finding: `node "<scripts>/decisions.mjs" --path <file> --text "<claim>"`; `decision:` lines → "Past decisions".

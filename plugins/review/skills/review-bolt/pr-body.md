@@ -24,7 +24,7 @@ Rounds: <1|2> · proven: <n> · discarded: <n> · unverified: <n>
 
 Tests changed by fixes: <each `UPDATED-TEST` line; none → "None.">
 
-<Rounds = 2 only: "Round-2 fixes are covered by their proving tests and are not re-reviewed.">
+<Rounds = 2 only: "Round 2 reviewed only the fix lines (<n> findings outside them dropped). Round-2 fixes are covered by their proving tests and are not re-reviewed.">
 
 ## Same bug elsewhere (not fixed here)
 
