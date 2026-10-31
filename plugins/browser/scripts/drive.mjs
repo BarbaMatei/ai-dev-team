@@ -87,11 +87,10 @@ async function main() {
         const { requestId, request } = p;
         try {
           const fake = matchFake(plan.fake, request.url, request.method);
-          if (!fake) return await page.send('Fetch.continueRequest', { requestId });
-          const reply = fulfil(request, fake, bodyOf(fake));
+          if (!fake) return await page.send('Fetch.continueRequest', { requestId }).catch(() => {});
+          await page.send('Fetch.fulfillRequest', { requestId, ...fulfil(request, fake, bodyOf(fake)) });
           stats.faked++;
           emit(`fake ${request.method} ${request.url}`);
-          await page.send('Fetch.fulfillRequest', { requestId, ...reply });
         } catch (e) {
           emit(`fake-error ${request.method} ${request.url}: ${clip(e.message, 300)}`);
           await page.send('Fetch.failRequest', { requestId, errorReason: 'Failed' }).catch(() => {});

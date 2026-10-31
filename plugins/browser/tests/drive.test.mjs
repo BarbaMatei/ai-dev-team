@@ -360,15 +360,48 @@ test('a fake whose reply cannot be built prints fake-error and fails the request
   const r = run(t);
   assert.equal(r.status, 0, r.stderr);
   assert.ok(lines(r).some((l) => l.startsWith('fake-error GET http://x/img/a: ')), r.stdout);
-  assert.deepEqual(fetchCalls(t.log, 'Fetch.failRequest').map((c) => c.params), [{ requestId: 'R9', errorReason: 'Failed' }]);
+  const failed = fetchCalls(t.log, 'Fetch.failRequest').map((c) => c.params);
+  assert.deepEqual(failed, [{ requestId: 'R9', errorReason: 'Failed' }]);
   assert.equal(fetchCalls(t.log, 'Fetch.fulfillRequest').length, 0);
 });
 
 test('matchFake treats only * and ? as wildcards and matches the whole address', () => {
   const hit = (url, probe) => matchFake([{ url }], probe, 'GET') !== undefined;
-  assert.equal(hit('http://a.test/x+y*', 'http://aXtest/xxy'), false);
   assert.equal(hit('http://a.test/x+y*', 'http://a.test/x+y/more'), true);
+  assert.equal(hit('http://a.test/x+y*', 'http://aXtest/x+y/more'), false);
+  assert.equal(hit('http://a.test/x+y*', 'http://a.test/xxy'), false);
   assert.equal(hit('http://a.test/x?', 'http://a.test/xa'), true);
   assert.equal(hit('http://a.test/x?', 'http://a.test/x'), false);
   assert.equal(hit('http://a.test/x?', 'http://a.test/xab'), false);
+});
+
+test('a fulfil that the browser rejects is a fake-error, not a counted fake', () => {
+  const t = setup([{ sleep: 200 }], {
+    doc: { fake: [{ url: 'http://x/api/*', text: 'ok' }] },
+    cdp: {
+      replies: { 'Fetch.fulfillRequest': [{ error: 'Invalid InterceptionId' }] },
+      events: { 'Fetch.enable': [paused('R1', 'GET', 'http://x/api/a')] },
+    },
+  });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  const out = lines(r);
+  assert.ok(out.includes('fake-error GET http://x/api/a: Invalid InterceptionId'), r.stdout);
+  assert.equal(out.some((l) => l.startsWith('fake GET')), false);
+  assert.match(out.at(-1), /^done 1 steps, 0 api requests, 0 faked, log /);
+  assert.equal(fetchCalls(t.log, 'Fetch.failRequest').length, 1);
+});
+
+test('a rejected continue of an unmatched request is not a fake-error', () => {
+  const t = setup([{ sleep: 200 }], {
+    doc: { fake: [{ url: 'http://x/api/*', method: 'GET', text: 'ok' }] },
+    cdp: {
+      replies: { 'Fetch.continueRequest': [{ error: 'Invalid InterceptionId' }] },
+      events: { 'Fetch.enable': [paused('R1', 'POST', 'http://x/api/a')] },
+    },
+  });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(lines(r).some((l) => l.startsWith('fake-error')), false);
+  assert.equal(fetchCalls(t.log, 'Fetch.failRequest').length, 0);
 });
