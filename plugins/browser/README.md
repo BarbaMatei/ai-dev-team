@@ -1,13 +1,15 @@
 # browser
 
-Start the app and take screenshots of its pages. Other plugins (`e2e`, `ui-review`) use its skills instead of carrying their own browser code. Zero dependencies: Node 22 or newer, plus a Chrome, Edge or Chromium already on the machine.
+Start the app, take screenshots of its pages and drive it like a person. Other plugins (`e2e`, `ui-review`) use its skills instead of carrying their own browser code. Zero dependencies: Node 22 or newer, plus a Chrome, Edge or Chromium already on the machine.
 
 ## What is in it
 
 - `app.mjs up|down|status` starts the app's parts in order (for example the API, then the web server), waits until each answers, and stops them again with everything they started. A part that already runs is reused and left alone.
-- `shots.mjs` takes one PNG per page and screen size with a headless browser, using the DevTools protocol, so phone viewport widths are exact. One browser profile is shared across the shots of a run. `E2E_START_TIMEOUT_MS` (default 15000) is for tests only.
+- `shots.mjs` takes one PNG per page and screen size with a headless browser, using the DevTools protocol, so phone viewport widths are exact. One browser profile is shared across the shots of a run. `BROWSER_START_TIMEOUT_MS` (default 15000) is for tests only.
+- `drive.mjs <steps.json> <out-dir>` runs a steps file (go, wait, click, type, press, upload, eval, shot) with real mouse and keyboard events and prints the page's console errors, exceptions, failed requests and API responses. A failed step saves `fail-<n>.png` and exits 1.
 - Skill `browser:app` runs `app.mjs`. Arg: `up|down|status`.
 - Skill `browser:capture` boots the app, takes the screenshots and returns the folder. Args: `<route>... [--viewports 390x844,1280x800] [--wait <ms>] [--keep]`.
+- Skill `browser:drive` boots the app, runs a steps file and returns the log. Args: `<steps.json> [--keep]`. The skill lists every step.
 
 ## Settings
 

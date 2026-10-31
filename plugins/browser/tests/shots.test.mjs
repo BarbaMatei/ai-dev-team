@@ -94,7 +94,7 @@ test('a route Git Bash rewrote into a Windows path exits 2 before any browser ru
 test('a browser that never opens the debugging port exits 1 quickly', () => {
   const { dir, out, env } = setup();
   const t = Date.now();
-  const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: 'nostart', E2E_START_TIMEOUT_MS: '700' });
+  const r = run(dir, [out, '/x', '--viewports', '390x844'], { ...env, FAKE_CDP_MODE: 'nostart', BROWSER_START_TIMEOUT_MS: '700' });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /browser: browser did not start/);
   assert.ok(Date.now() - t < 10000);

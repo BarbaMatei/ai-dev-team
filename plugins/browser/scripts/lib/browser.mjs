@@ -80,7 +80,7 @@ export async function launch(browser) {
       return null;
     }
   };
-  const limit = Date.now() + (Number(process.env.E2E_START_TIMEOUT_MS) || 15000);
+  const limit = Date.now() + (Number(process.env.BROWSER_START_TIMEOUT_MS) || 15000);
   let found = read();
   while (!found && !exited && Date.now() < limit) {
     await sleep(100);
