@@ -16,12 +16,12 @@ The owner reads these one at a time in a chat window, often as a non-programmer,
 
 <Two to four sentences for someone with no context: what a customer or the staff run into, and why these go together.>
 
-1. #<n> <title in plain words> — <kind>
+1. #<n> <title in plain words> — <where it shows: on a page, in a server reply, only in a test, in the build, or a legal or provider rule>
 2. …
 
 **Settings:** <what fix-setup found, one line; each gap with what you will do instead>
 **Writes outside this repo:** a comment on each of these issues at the end, new issues only when you say yes, one branch and one PR (you merge it).
-**At the end:** review-bolt tidies the code on its own (listed in the PR) and brings you each bug its review proves, like these.
+**At the end:** a final review tidies the code on its own (the PR lists every tidy-up) and brings you each bug it proves, like these.
 
 Is the app running at <address>, or shall I start it?
 ```
@@ -50,7 +50,7 @@ Pick the kind by where a person can see the bug today. A bug hidden behind anoth
 2. <What happens to the value next> — `path:line`
 3. <The wrong result, and who sees it> — `path:line`
 
-**See it yourself** (checked with browser:drive: <what the log showed, one line>)
+**See it yourself** (<"checked with browser:drive: " and what the log showed, one line; or "not verified: " and why>)
 1. Open <address> (and sign in as <test account> when the bug needs it).
 2. <…>
 3. You see <the wrong thing>.
@@ -77,7 +77,7 @@ New:
 …
 ```
 
-**Test:** `<test name>` in `<file>` stays as the regression test: every fix keeps its proving test, and mutate-check confirms it fails without the fix. The bug got through because <the gap, for example "the old tests called the handler directly, never the route">.
+**Test:** `<test name>` in `<file>` stays: every fix keeps the test that proved the bug, and a check confirms the test fails when the fix is taken out. The bug got through because <the gap, for example "the old tests called the handler directly, never the route">.
 **Check afterwards:** <the same steps and what the screen shows now; a restart the fix needs>
 
 Approve?

@@ -16,17 +16,17 @@ You fix proven bugs with the owner, one at a time. The owner decides; your job i
 
 1. One bug per message, and one question, at its end. The owner reads in a chat window and answers with a word.
 2. Nothing is edited before the owner's word on this bug. Approval of one bug never approves the next; silence approves nothing.
-3. No batch fixing. Two trivial bugs may be offered together, still as one question.
+3. No batch fixing: every change gets its own message and its own word. Only issues that one and the same change fixes are presented as one bug, and the message says so.
 4. Never hand over steps you have not run yourself; when you cannot run them, say "not verified" and why.
 5. Test data only on test accounts. Never change real users' records; never improvise infrastructure (mail servers, stand-in services).
-6. A bug no test can make fail is closed only on the owner's yes. Never merge.
+6. A bug no test can make fail is fixed or closed only on the owner's yes. Never merge.
 
 ## Setup, once per batch
 
 1. `git status`, `git log -1`, the branch. On the default branch → a batch branch `fix/<short-name>` (in a worktree if other sessions share this checkout).
-2. `node "<scripts>/fix-setup.mjs"` → nine lines `<key><TAB><value>`; on a `missing` line the third column says what to do instead. Keep them for the whole batch.
+2. `node "<scripts>/fix-setup.mjs"` → nine lines `<key><TAB><value>`; on a `missing` or `default` line the third column says what to do instead. Keep them for the whole batch.
 3. Read every issue and its comments. Already fixed on the default branch, a duplicate or obsolete → it becomes a closure (presentation.md), presented in its turn like a fix.
-4. Order the bugs: bugs sharing files next to each other (they cannot be separate commits: say so), then by seriousness.
+4. Order the bugs: bugs sharing files next to each other (still one approval and one commit each), then by seriousness.
 5. Send the batch opening (presentation.md): what the bugs have in common, in plain words; the settings and their gaps; the writes outside this repo; what runs on its own at the end; and one question: is the app running, or shall you start it (`browser:app up`)?
 
 ## Per bug
@@ -39,15 +39,15 @@ You fix proven bugs with the owner, one at a time. The owner decides; your job i
 6. **Edit exactly what was shown**, test-first: the issue's proving test is the regression test (none yet → write it and watch it fail first). Run it, then the scoped tests of every touched file. An existing assertion that goes red is collateral damage: show it, why it no longer holds and what it should assert instead, and wait.
 7. **mutate-check** the fix line: `node "<scripts>/mutate-check.mjs" --file <file> --line <n> --replace "<pre-fix text>" --kind <kind> --test "<filter>"` (empty pre-fix → omit `--replace`). `NOT GUARDED` → strengthen only the test, once; still not → say so in the next message.
 8. **Commit** that bug alone, with the project's commit rules (for example `fix(<area>): <one sentence>`).
-9. **Browser or API bug:** run the steps again with `browser:drive`, then send the re-check (presentation.md), naming any restart the fix needs, and wait for "it works".
+9. **Browser or API bug:** once the app runs the fix (a restart it needs: ask the owner, or `browser:app` if you started the app), run the steps again with `browser:drive`, then send the re-check (presentation.md) and wait for "it works". "It still doesn't" → field-guide.md "Reading the owner".
 10. One tally line ("3 of 7 settled"); keep the outcome for the PR body: fixed (commit), closed (why) or left open (why).
 
 Along the way: a defect you find is named in one line and filed as an issue only on the owner's yes, never touched; a feature request follows field-guide.md "Scope".
 
 ## Close
 
-1. One message on what comes next: review-bolt with `--ask` lets simplify's tidy-ups commit on their own (the PR body lists them) and brings every bug its review proves to the owner like these, one at a time. Then invoke `review:review-bolt` with args `--base <default branch> --ask`.
-2. Put at the top of the PR body one outcome line per bug and `Closes #<n>` for each fixed or closed issue (`gh pr edit --body-file`).
+1. One message on what comes next: a final review tidies the code on its own (the PR lists every tidy-up) and brings each bug it proves to the owner like these, one at a time, and asks before filing any issue. Then invoke `review:review-bolt` with args `--base <default branch> --ask`. Its reply is an intermediate result: continue with step 2.
+2. Put one outcome line per bug and `Closes #<n>` for each fixed or closed issue at the top of the PR body file review-bolt names in its reply, then `gh pr edit --body-file <that file>`.
 3. Comment on each batch issue in plain words: what was wrong, what changed or why it closes, the PR link.
 4. Reply: the PR link, the tally, the "Needs owner" items. Never merge.
 
@@ -55,7 +55,7 @@ Along the way: a defect you find is named in one line and filed as an issue only
 
 | The thought | What it hides |
 |---|---|
-| "They share a file, I'll fix both now" | Two decisions taken as one: present them as one bug with one question, or one after the other. |
+| "They share a file, I'll fix both now" | Two decisions taken as one. One after the other, one word each. |
 | "The owner approved the last one, this one is the same" | Approval never carries over. Ask. |
 | "The steps are obvious, no need to run them" | Issues describe screens their authors never saw. Run them, or say "not verified". |
 | "I'll tidy this nearby code while I'm here" | An unshown edit. Name it; it goes to review-bolt or an issue. |
