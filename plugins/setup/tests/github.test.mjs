@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { quote } from '../scripts/lib/gh-run.mjs';
+import { commandLine, quote } from '../scripts/lib/gh-run.mjs';
 
 const script = fileURLToPath(new URL('../scripts/github.mjs', import.meta.url));
 const fake = fileURLToPath(new URL('./fake-gh.mjs', import.meta.url));
@@ -180,4 +180,10 @@ test('owner prints the account type from gh api users', () => {
   assert.equal(r.code, 0, r.err);
   assert.equal(r.out, 'Organization\n');
   assert.deepEqual(p.calls().map((c) => c.argv), [['api', 'users/someone', '--jq', '.type']]);
+});
+
+test('the gh command line uses the platform quoting for every argument', () => {
+  const args = ['label', 'create', 'bug', '--description', 'Something is broken'];
+  assert.equal(commandLine('gh', args, 'win32'), 'gh label create bug --description "Something is broken"');
+  assert.equal(commandLine('gh', args, 'linux'), "gh label create bug --description 'Something is broken'");
 });

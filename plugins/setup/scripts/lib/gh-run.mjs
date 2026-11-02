@@ -15,9 +15,13 @@ export class GhError extends Error {
   }
 }
 
+export function commandLine(cmd, args, platform = process.platform) {
+  return `${cmd} ${args.map((a) => quote(a, platform)).join(' ')}`;
+}
+
 export function makeGh(cmd, cwd) {
   return (args, input) => {
-    const r = spawnSync(`${cmd} ${args.map(quote).join(' ')}`, { cwd, shell: true, input, encoding: 'utf8', maxBuffer: 64 << 20 });
+    const r = spawnSync(commandLine(cmd, args), { cwd, shell: true, input, encoding: 'utf8', maxBuffer: 64 << 20 });
     if (r.status !== 0) throw new GhError(r.stderr || String(r.error ?? ''));
     return r.stdout;
   };
