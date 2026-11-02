@@ -126,10 +126,30 @@ test('each ci job skips cleanly when its project file is missing', () => {
     assert.ok(steps[0].startsWith('uses: actions/checkout@v4'));
     assert.ok(steps[1].includes('id: project'));
     for (const f of want[role]) assert.ok(steps[1].includes(f), f);
+    assert.ok(steps[1].includes('        working-directory: .\n'), role);
+    assert.ok(steps[1].includes('echo "found=true" >> "$GITHUB_OUTPUT"'), role);
     for (const s of steps.slice(2)) assert.ok(s.includes("if: steps.project.outputs.found == 'true'"), s);
   }
   assert.ok(jobs[0].includes('actions/setup-dotnet@v4') && jobs[0].includes('8.0.x'));
   assert.ok(jobs[1].includes('actions/setup-node@v4') && jobs[1].includes('npm ci'));
+});
+
+const hasBash = spawnSync('bash', ['-c', 'exit 0'], { env: cleanEnv() }).status === 0;
+
+test('the ci probe finds the project file from the repository root', { skip: hasBash ? false : 'bash is not available' }, () => {
+  const ci = get(answers(), '.github/workflows/ci.yml');
+  const web = ci.split(/^ {2}(?=web:)/m)[1];
+  const probe = web.split(/^ {6}- /m)[2].match(/^ {8}run: (.*)$/m)[1];
+  const repo = path.join(base, `p${n++}`);
+  fs.mkdirSync(path.join(repo, 'src', 'web'), { recursive: true });
+  const run = () => {
+    spawnSync('bash', ['-c', probe], { cwd: repo, env: { ...cleanEnv(), GITHUB_OUTPUT: 'out.txt' } });
+    const f = path.join(repo, 'out.txt');
+    return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
+  };
+  assert.equal(run(), '');
+  fs.writeFileSync(path.join(repo, 'src', 'web', 'package.json'), '{}');
+  assert.equal(run(), 'found=true\n');
 });
 
 test('semantic-release and kit release render different release files', () => {
