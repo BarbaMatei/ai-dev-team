@@ -10,6 +10,6 @@ One question per message, in plain words, with a default in brackets when one is
 6. **GitHub owner:** "Which GitHub account or organization owns it?" [`gh api user --jq .login`]. Then `node "<scripts>/github.mjs" owner <login>` gives `User` or `Organization`.
 7. **Visibility:** "Public or private?" [private]. Say once: on GitHub's free plan a private repository cannot protect its main branch; everything else works.
 
-Existing repository: do not ask what it already answers. Name and owner come from `origin`, visibility from `gh repo view --json visibility`, the purpose from its README; confirm them in one message, then ask only the rest.
+Existing repository: do not ask what it already answers. Name and owner come from `origin`, visibility from `gh repo view --json visibility`, the purpose from its README; confirm them in one message, then ask only the rest. `github.mjs owner <login>` still gives `ownerType`.
 
 The answers file keeps `purpose`, `users` and `mustDo` for first-feature.md; no rendered file uses them.
