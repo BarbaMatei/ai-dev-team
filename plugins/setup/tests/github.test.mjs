@@ -6,6 +6,7 @@ import path from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { commandLine, quote } from '../scripts/lib/gh-run.mjs';
+import { renderFiles } from '../scripts/render.mjs';
 
 const script = fileURLToPath(new URL('../scripts/github.mjs', import.meta.url));
 const fake = fileURLToPath(new URL('./fake-gh.mjs', import.meta.url));
@@ -26,6 +27,7 @@ const answers = {
 function cleanEnv(extra) {
   const env = { ...process.env, ...extra };
   for (const k of Object.keys(env)) if (k.startsWith('GIT_') || k.startsWith('GITHUB_')) delete env[k];
+  env.GIT_CEILING_DIRECTORIES = path.dirname(fs.realpathSync(os.tmpdir()));
   return env;
 }
 
@@ -34,15 +36,20 @@ function git(cwd, args) {
   assert.equal(r.status, 0, r.stderr);
 }
 
-function project({ origin, a = answers, gh = [] } = {}) {
+function project({ origin, a = answers, gh = [], ci, nested } = {}) {
   const id = n++;
-  const root = path.join(base, `p${id}`);
+  const outer = path.join(base, `p${id}`);
+  const root = nested ? path.join(outer, 'sub') : outer;
   const tmp = path.join(base, `tmp${id}`);
-  fs.mkdirSync(root);
+  fs.mkdirSync(root, { recursive: true });
   fs.mkdirSync(tmp);
   if (origin) {
-    git(root, ['init', '-q']);
-    git(root, ['remote', 'add', 'origin', origin]);
+    git(outer, ['init', '-q']);
+    git(outer, ['remote', 'add', 'origin', origin]);
+  }
+  if (ci !== undefined) {
+    fs.mkdirSync(path.join(root, '.github', 'workflows'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.github', 'workflows', 'ci.yml'), ci);
   }
   const answersFile = path.join(base, `answers${id}.json`);
   fs.writeFileSync(answersFile, JSON.stringify(a));
@@ -125,6 +132,7 @@ test('apply never calls gh secret and only writes the key script', () => {
   const text = fs.readFileSync(p.keyPath, 'utf8');
   assert.ok(text.startsWith('#!/usr/bin/env bash\n'));
   assert.ok(text.includes('gh repo deploy-key add "$dir/release-key.pub" --allow-write --title release-bot -R someone/my-shop\n'));
+  assert.ok(text.includes('dir="$(mktemp -d)"\ntrap \'rm -rf "$dir"\' EXIT\n'));
   assert.ok(!text.includes('\r'));
   assert.deepEqual(fs.readdirSync(p.tmp), ['make-release-key-my-shop.sh']);
   if (process.platform !== 'win32') assert.equal(fs.statSync(p.keyPath).mode & 0o777, 0o755);
@@ -187,4 +195,60 @@ test('the gh command line uses the platform quoting for every argument', () => {
   const args = ['label', 'create', 'bug', '--description', 'Something is broken'];
   assert.equal(commandLine('gh', args, 'win32'), 'gh label create bug --description "Something is broken"');
   assert.equal(commandLine('gh', args, 'linux'), "gh label create bug --description 'Something is broken'");
+});
+
+test('apply after repo create creates only the labels the new repository lacks', () => {
+  const gh = [{ match: ['repo', 'create'] }, ...okGh(['bug'])];
+  const p = project({ gh });
+  const r = p.run('apply');
+  assert.equal(r.code, 0, r.err);
+  const lines = r.out.split('\n');
+  assert.ok(lines.includes('repo created someone/my-shop'));
+  assert.ok(lines.includes('labels created proposal severity:serious severity:minor'));
+  const creates = p.calls().filter((c) => c.argv[0] === 'label' && c.argv[1] === 'create');
+  assert.deepEqual(creates.map((c) => c.argv[2]), ['proposal', 'severity:serious', 'severity:minor']);
+});
+
+const kitCi = () => renderFiles(answers).find((f) => f.path === '.github/workflows/ci.yml').content;
+
+test("a ci.yml that is not the kit's blocks the ruleset in apply and is flagged in plan", () => {
+  const p = project({ origin: ORIGIN, gh: okGh(), ci: 'name: mine\n' });
+  const plan = p.run('plan');
+  assert.equal(plan.code, 0, plan.err);
+  assert.match(plan.out, /^protection ruleset web bypass deploy-key \(only if the kit's ci\.yml is used\)$/m);
+  const r = p.run('apply');
+  assert.equal(r.code, 0, r.err);
+  const lines = r.out.split('\n');
+  assert.ok(lines.includes("protection skipped: .github/workflows/ci.yml is not the kit's"));
+  assert.ok(lines.includes('release-key skipped: no protection; releases use the built-in token'));
+  assert.deepEqual(p.calls().filter((c) => c.argv[1] === '-X'), []);
+  assert.equal(fs.existsSync(p.keyPath), false);
+});
+
+test("the kit's own ci.yml, even with CRLF line ends, still gets the ruleset", () => {
+  const p = project({ origin: ORIGIN, gh: okGh(), ci: kitCi().replace(/\n/g, '\r\n') });
+  const plan = p.run('plan');
+  assert.match(plan.out, /^protection ruleset web bypass deploy-key$/m);
+  const r = p.run('apply');
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /^protection applied$/m);
+  assert.equal(p.calls().filter((c) => c.argv[1] === '-X').length, 1);
+});
+
+test('a folder inside another repository is not treated as that repository', () => {
+  const p = project({ origin: 'https://github.com/other/dotfiles.git', nested: true, gh: okGh() });
+  const r = p.run('plan');
+  assert.equal(r.code, 0, r.err);
+  assert.ok(r.out.startsWith('repo create someone/my-shop public\n'), r.out);
+  assert.ok(!r.out.includes('other/dotfiles'));
+});
+
+test('plan prints no release-key line when the ruleset list is forbidden', () => {
+  const msg = 'gh: Upgrade to GitHub Pro (HTTP 403)';
+  const gh = okGh().map((s) => (s.match.length === 2 && s.match[1] === RS ? { ...s, code: 1, stderr: `${msg}\n` } : s));
+  const p = project({ origin: ORIGIN, gh });
+  const r = p.run('plan');
+  assert.equal(r.code, 0, r.err);
+  assert.ok(r.out.split('\n').includes(`protection unavailable: ${msg}`));
+  assert.doesNotMatch(r.out, /release-key/);
 });

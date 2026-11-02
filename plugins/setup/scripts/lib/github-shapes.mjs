@@ -45,6 +45,7 @@ export function keyScript(slug) {
   return `#!/usr/bin/env bash
 set -euo pipefail
 dir="$(mktemp -d)"
+trap 'rm -rf "$dir"' EXIT
 ssh-keygen -q -t ed25519 -N "" -C "release-bot" -f "$dir/release-key"
 gh repo deploy-key add "$dir/release-key.pub" --allow-write --title release-bot -R ${slug}
 gh secret set RELEASE_DEPLOY_KEY -R ${slug} < "$dir/release-key"

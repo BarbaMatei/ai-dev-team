@@ -1,11 +1,12 @@
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { AnswersError } from './lib/answers.mjs';
+import { lf } from './lib/files.mjs';
 import { GhError, makeGh } from './lib/gh-run.mjs';
 import { LABELS, RULESET_NAME, keyScript, rulesetBody } from './lib/github-shapes.mjs';
-import { ciJobNames } from './render.mjs';
+import { isRepoRoot, git } from './lib/repo.mjs';
+import { ciJobNames, renderFiles } from './render.mjs';
 
 const USAGE = 'github: usage: github.mjs plan|apply <answers.json> [--gh <command>] | owner <login> [--gh <command>]';
 const OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
@@ -24,9 +25,8 @@ function slugOf(owner, repo) {
 }
 
 function originSlug(cwd) {
-  const env = { ...process.env };
-  for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
-  const r = spawnSync('git', ['remote', 'get-url', 'origin'], { cwd, env, encoding: 'utf8' });
+  if (!isRepoRoot(cwd)) return null;
+  const r = git(cwd, ['remote', 'get-url', 'origin']);
   if (r.status !== 0) return null;
   const m = /[/:]([^/:]+)\/([^/:]+?)(?:\.git)?\/?$/.exec(r.stdout.trim());
   if (!m) throw new Stop(2, `github: cannot read owner/repository from origin ${r.stdout.trim()}`);
@@ -54,7 +54,8 @@ function readAnswers(file) {
   } catch (e) {
     throw new Stop(2, `github: cannot read answers ${file}: ${e.code ?? 'invalid JSON'}`);
   }
-  return { a, checks: ciJobNames(a) };
+  const kit = lf(renderFiles(a).find((f) => f.path === '.github/workflows/ci.yml').content);
+  return { a, kit, checks: ciJobNames(a) };
 }
 
 function step(name, fn) {
@@ -66,13 +67,20 @@ function step(name, fn) {
   }
 }
 
+function missingLabels(gh, repo) {
+  return step('labels', () => {
+    const have = new Set(JSON.parse(gh(['label', 'list', '-R', repo.slug, '--json', 'name', '--limit', '200'])).map((l) => l.name));
+    return LABELS.filter((l) => !have.has(l.name));
+  });
+}
+
+function ownCi(kit) {
+  const file = path.join(process.cwd(), '.github', 'workflows', 'ci.yml');
+  return fs.existsSync(file) && lf(fs.readFileSync(file, 'utf8')) !== kit;
+}
+
 function inspect(gh, a, checks, repo) {
-  const missing = repo.existing
-    ? step('labels', () => {
-        const have = new Set(JSON.parse(gh(['label', 'list', '-R', repo.slug, '--json', 'name', '--limit', '200'])).map((l) => l.name));
-        return LABELS.filter((l) => !have.has(l.name));
-      })
-    : LABELS;
+  const missing = repo.existing ? missingLabels(gh, repo) : LABELS;
   let protection = 'new';
   if (repo.existing) {
     try {
@@ -87,10 +95,11 @@ function inspect(gh, a, checks, repo) {
   return { missing, protection, checks };
 }
 
-function execute(gh, a, repo, state, out) {
+function execute(gh, a, repo, state, out, ownCiFile) {
   if (!repo.existing) {
     step('repo create', () => gh(['repo', 'create', repo.slug, `--${a.visibility}`, '--source', '.', '--remote', 'origin', '--push']));
     out(`repo created ${repo.slug}`);
+    state = { ...state, missing: missingLabels(gh, repo) };
   }
   if (state.missing.length === 0) out('labels present');
   else {
@@ -98,6 +107,7 @@ function execute(gh, a, repo, state, out) {
     out(`labels created ${state.missing.map((l) => l.name).join(' ')}`);
   }
   let { protection } = state;
+  if (protection === 'new' && ownCiFile) protection = "skipped: .github/workflows/ci.yml is not the kit's";
   if (protection === 'new') {
     try {
       gh(['api', '-X', 'POST', `repos/${repo.slug}/rulesets`, '--input', '-'], JSON.stringify(rulesetBody(state.checks, a.ownerType)));
@@ -121,20 +131,21 @@ function run(o, out) {
     out(step('owner', () => gh(['api', `users/${o.arg}`, '--jq', '.type'])).trim());
     return;
   }
-  const { a, checks } = readAnswers(o.arg);
+  const { a, kit, checks } = readAnswers(o.arg);
   const origin = originSlug(process.cwd());
   const repo = origin ? { ...origin, existing: true } : { ...slugOf(a.owner, a.name), existing: false };
   const state = inspect(gh, a, checks, repo);
   const user = a.ownerType === 'User';
+  const ownCiFile = ownCi(kit);
   if (o.cmd === 'plan') {
     if (!repo.existing) out(`repo create ${repo.slug} ${a.visibility}`);
     out(state.missing.length ? `labels ${state.missing.map((l) => l.name).join(' ')}` : 'labels present');
-    if (state.protection === 'new') out(`protection ruleset ${checks.join(',')} bypass ${user ? 'deploy-key' : 'actions'}${a.visibility === 'private' ? ' (private: needs a paid plan)' : ''}`);
+    if (state.protection === 'new') out(`protection ruleset ${checks.join(',')} bypass ${user ? 'deploy-key' : 'actions'}${a.visibility === 'private' ? ' (private: needs a paid plan)' : ''}${ownCiFile ? " (only if the kit's ci.yml is used)" : ''}`);
     else out(`protection ${state.protection}`);
-    if (user) out(`release-key ${keyPath(repo)}${a.visibility === 'private' ? ' (only if protection applies)' : ''}`);
+    if (user && ['new', 'exists'].includes(state.protection)) out(`release-key ${keyPath(repo)}${a.visibility === 'private' ? ' (only if protection applies)' : ''}`);
     return;
   }
-  const protectedNow = execute(gh, a, repo, state, out);
+  const protectedNow = execute(gh, a, repo, state, out, ownCiFile);
   if (!user) return;
   if (!protectedNow) return out('release-key skipped: no protection; releases use the built-in token');
   fs.writeFileSync(keyPath(repo), keyScript(repo.slug), { mode: 0o755 });
