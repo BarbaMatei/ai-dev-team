@@ -30,6 +30,7 @@ const answers = (extra = {}) => ({
 function cleanEnv() {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (k.startsWith('GIT_') || k.startsWith('GITHUB_')) delete env[k];
+  env.GIT_CEILING_DIRECTORIES = path.dirname(fs.realpathSync(os.tmpdir()));
   return env;
 }
 

@@ -24,6 +24,7 @@ const answers = {
 function cleanEnv() {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (k.startsWith('GIT_') || k.startsWith('GITHUB_')) delete env[k];
+  env.GIT_CEILING_DIRECTORIES = path.dirname(fs.realpathSync(os.tmpdir()));
   return env;
 }
 
@@ -108,4 +109,25 @@ test('apply with a missing staging folder exits 2', () => {
   const r = run(project(false), 'apply.mjs', path.join(base, 'nope'));
   assert.equal(r.code, 2);
   assert.match(r.err, /^apply: /);
+});
+
+test('apply keeps a hooks path the owner already set', () => {
+  const stage = staging();
+  const dir = project();
+  spawnSync('git', ['config', 'core.hooksPath', '.husky/_'], { cwd: dir, env: cleanEnv() });
+  const r = run(dir, 'apply.mjs', stage, '--write');
+  assert.equal(r.code, 0, r.err);
+  assert.ok(r.out.trim().endsWith('hooksPath kept .husky/_'), r.out);
+  assert.equal(gitConfig(dir, 'core.hooksPath'), '.husky/_');
+});
+
+test('apply in a folder inside another repository leaves that repository alone', () => {
+  const stage = staging();
+  const outer = project();
+  const dir = path.join(outer, 'sub');
+  fs.mkdirSync(dir);
+  const r = run(dir, 'apply.mjs', stage, '--write');
+  assert.equal(r.code, 0, r.err);
+  assert.ok(r.out.trim().endsWith(`hooksPath not set: ${dir} is not a git repository root`), r.out);
+  assert.equal(gitConfig(outer, 'core.hooksPath'), '');
 });
