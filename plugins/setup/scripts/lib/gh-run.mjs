@@ -2,10 +2,10 @@ import { spawnSync } from 'node:child_process';
 
 const SAFE = /^[\w./:@=,+-]+$/;
 
-export function quote(arg) {
+export function quote(arg, platform = process.platform) {
   if (SAFE.test(arg)) return arg;
   if (/["%\r\n\0]/.test(arg)) throw new Error(`setup: cannot pass ${JSON.stringify(arg)} to gh`);
-  return process.platform === 'win32' ? `"${arg}"` : `'${arg.replace(/'/g, "'\''")}'`;
+  return platform === 'win32' ? `"${arg}"` : `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
 export class GhError extends Error {

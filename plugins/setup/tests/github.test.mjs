@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { quote } from '../scripts/lib/gh-run.mjs';
 
 const script = fileURLToPath(new URL('../scripts/github.mjs', import.meta.url));
 const fake = fileURLToPath(new URL('./fake-gh.mjs', import.meta.url));
@@ -48,8 +49,8 @@ function project({ origin, a = answers, gh = [] } = {}) {
   const scriptFile = path.join(base, `script${id}.json`);
   fs.writeFileSync(scriptFile, JSON.stringify(gh));
   const log = path.join(base, `log${id}.txt`);
-  const run = (cmd) => {
-    const r = spawnSync(process.execPath, [script, cmd, answersFile, '--gh', `node "${fake}"`], {
+  const run = (cmd, arg = answersFile) => {
+    const r = spawnSync(process.execPath, [script, cmd, arg, '--gh', `node "${fake}"`], {
       cwd: root,
       encoding: 'utf8',
       env: cleanEnv({ FAKE_GH_LOG: log, FAKE_GH_SCRIPT: scriptFile, TMPDIR: tmp, TEMP: tmp, TMP: tmp }),
@@ -152,4 +153,31 @@ test('an existing origin skips repo create', () => {
   const creates = p.calls().filter((c) => c.argv[0] === 'label' && c.argv[1] === 'create');
   assert.equal(creates.length, 4);
   assert.ok(creates.every((c) => c.argv.includes('real-owner/real-repo')));
+});
+
+test('quote keeps a single quote intact for sh and wraps spaces for cmd', () => {
+  assert.equal(quote("it's", 'linux'), "'it'\\''s'");
+  assert.equal(quote('a b', 'linux'), "'a b'");
+  assert.equal(quote('a b', 'win32'), '"a b"');
+  assert.equal(quote('severity:minor', 'linux'), 'severity:minor');
+});
+
+test('a 403 on the rulesets list is reported as unavailable, writes no key script and posts nothing', () => {
+  const msg = 'gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)';
+  const gh = okGh().map((s) => (s.match.length === 2 && s.match[1] === RS ? { ...s, code: 1, stderr: `${msg}\n` } : s));
+  const p = project({ origin: ORIGIN, gh });
+  const r = p.run('apply');
+  assert.equal(r.code, 0, r.err);
+  assert.ok(r.out.split('\n').includes(`protection unavailable: ${msg}`));
+  assert.ok(r.out.split('\n').includes('release-key skipped: no protection; releases use the built-in token'));
+  assert.equal(fs.existsSync(p.keyPath), false);
+  assert.deepEqual(p.calls().filter((c) => c.argv[1] === '-X'), []);
+});
+
+test('owner prints the account type from gh api users', () => {
+  const p = project({ gh: [{ match: ['api', 'users/someone'], stdout: 'Organization\n' }] });
+  const r = p.run('owner', 'someone');
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.out, 'Organization\n');
+  assert.deepEqual(p.calls().map((c) => c.argv), [['api', 'users/someone', '--jq', '.type']]);
 });
