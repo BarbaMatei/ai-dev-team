@@ -19,8 +19,13 @@ function oneOf(a, key, values) {
   return a[key];
 }
 
-function validDir(dir) {
-  return typeof dir === 'string' && dir !== '' && !dir.includes('\\') && !dir.startsWith('/') && !/^[A-Za-z]:/.test(dir) && !dir.split('/').some((s) => s === '..' || s === '');
+const SEGMENT = /^[A-Za-z0-9._-]+$/;
+
+function cleanDir(dir) {
+  if (typeof dir !== 'string') return null;
+  const d = dir.startsWith('./') ? dir.slice(2) : dir;
+  if (d === '.') return d;
+  return d.split('/').every((s) => SEGMENT.test(s) && s !== '.' && s !== '..') ? d : null;
 }
 
 export function validate(a, stackTable) {
@@ -36,11 +41,12 @@ export function validate(a, stackTable) {
     const at = `stacks[${i}]`;
     if (s === null || typeof s !== 'object') fail(at, 'must be an object');
     if (!Object.hasOwn(stackTable, s.id)) fail(`${at}.id`, `must be one of ${Object.keys(stackTable).join(', ')}`);
-    if (!validDir(s.dir)) fail(`${at}.dir`, 'must be a relative folder with / separators and no ..');
+    const dir = cleanDir(s.dir);
+    if (dir === null) fail(`${at}.dir`, 'must be a relative folder of letters, digits, . _ - with / separators and no ..');
     if (!ROLES.includes(s.role)) fail(`${at}.role`, `must be ${ROLES.join(', ')}`);
     if (roles.has(s.role)) fail(`${at}.role`, `${s.role} is used by an earlier stack`);
     roles.add(s.role);
-    return { id: s.id, dir: s.dir, role: s.role };
+    return { id: s.id, dir, role: s.role };
   });
   out.release = oneOf(a, 'release', ['semantic-release', 'kit']);
   if (out.release === 'kit') {

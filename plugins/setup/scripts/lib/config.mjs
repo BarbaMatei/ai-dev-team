@@ -1,4 +1,4 @@
-const KIT_PLUGINS = ['guardrails', 'review', 'test-quality', 'spec-upkeep', 'metrics', 'browser', 'e2e', 'ui-review', 'architect'];
+const KIT_PLUGINS = ['guardrails', 'review', 'test-quality', 'spec-upkeep', 'metrics', 'browser', 'e2e', 'ui-review', 'architect', 'setup'];
 const COMMON_IGNORE = ['.env', '.env.*', '!.env.example', '*.log', '.DS_Store', 'Thumbs.db', '.idea/', '.vs/'];
 
 const json = (v) => `${JSON.stringify(v, null, 2)}\n`;

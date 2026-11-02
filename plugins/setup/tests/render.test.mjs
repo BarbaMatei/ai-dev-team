@@ -7,6 +7,7 @@ import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { ciJobNames, renderFiles } from '../scripts/render.mjs';
 
+const pluginVersion = JSON.parse(fs.readFileSync(fileURLToPath(new URL('../.claude-plugin/plugin.json', import.meta.url)), 'utf8')).version;
 const script = fileURLToPath(new URL('../scripts/render.mjs', import.meta.url));
 const base = fs.mkdtempSync(path.join(os.tmpdir(), 'st-'));
 after(() => fs.rmSync(base, { recursive: true, force: true }));
@@ -66,7 +67,7 @@ test('a dotnet api and node web answers render the full file list', () => {
   const settings = JSON.parse(get(answers(), '.claude/settings.json'));
   assert.deepEqual(Object.keys(settings.enabledPlugins), [
     'superpowers@claude-plugins-official',
-    ...['guardrails', 'review', 'test-quality', 'spec-upkeep', 'metrics', 'browser', 'e2e', 'ui-review', 'architect'].map((p) => `${p}@ai-dev-team`),
+    ...['guardrails', 'review', 'test-quality', 'spec-upkeep', 'metrics', 'browser', 'e2e', 'ui-review', 'architect', 'setup'].map((p) => `${p}@ai-dev-team`),
   ]);
   assert.deepEqual(settings.extraKnownMarketplaces, { 'ai-dev-team': { source: { source: 'github', repo: 'BarbaMatei/ai-dev-team' } } });
 });
@@ -98,7 +99,7 @@ test('ai-dev-team.json tests and browser come from the stacks', () => {
     ],
   });
   assert.deepEqual([cfg.testLock, cfg.testGuard, cfg.rulesDir, cfg.triggers, cfg.bugs, cfg.metrics], [true, true, '.claude/rules', [], { label: 'bug' }, { since: 1 }]);
-  assert.deepEqual(cfg.setup, { ...answers(), version: '0.1.0' });
+  assert.deepEqual(cfg.setup, { ...answers(), version: pluginVersion });
   const lib = answers({ stacks: [{ id: 'python', dir: 'lib', role: 'lib' }] });
   const libCfg = JSON.parse(get(lib, '.claude/ai-dev-team.json'));
   assert.equal(libCfg.browser, undefined);
@@ -215,6 +216,7 @@ test('an unknown stack id or a missing answer exits 2 with one line', () => {
   bad(answers({ stacks: [] }), 'setup: answers.stacks');
   bad(answers({ stacks: [{ id: 'node', dir: 'a', role: 'web' }, { id: 'angular', dir: 'b', role: 'web' }] }), 'setup: answers.stacks[1].role');
   bad(answers({ stacks: [{ id: 'node', dir: '../a', role: 'web' }] }), 'setup: answers.stacks[0].dir');
+  for (const dir of ['my api', 'a#b', 'a$b', 'a*', 'a"b', "a'b", '..', 'a/../b']) bad(answers({ stacks: [{ id: 'node', dir, role: 'web' }] }), 'setup: answers.stacks[0].dir');
   bad(answers({ release: 'kit' }), 'setup: answers.releaseRef');
   bad(answers({ release: 'kit', releaseRef: 'main' }), 'setup: answers.releaseRef');
   bad(answers({ purpose: 3 }), 'setup: answers.purpose');
@@ -222,6 +224,14 @@ test('an unknown stack id or a missing answer exits 2 with one line', () => {
   const ok = cli(answers({ purpose: 'sell photos', users: 'shoppers', mustDo: 'checkout', version: '9.9.9' }));
   assert.equal(ok.code, 0, ok.err);
   assert.ok(!fs.readFileSync(path.join(ok.dir, 'CLAUDE.md'), 'utf8').includes('sell photos'));
+});
+
+test('a leading ./ in a stack folder is dropped', () => {
+  const a = answers({ stacks: [{ id: 'node', dir: './web', role: 'web' }] });
+  assert.equal(JSON.parse(get(a, '.claude/ai-dev-team.json')).tests.web.cwd, 'web');
+  assert.match(get(a, '.github/workflows/ci.yml'), /working-directory: web$/m);
+  const root = answers({ stacks: [{ id: 'node', dir: '.', role: 'web' }] });
+  assert.equal(JSON.parse(get(root, '.claude/ai-dev-team.json')).tests.web.cwd, '.');
 });
 
 test('the same answers render byte-identical output twice', () => {
