@@ -1,0 +1,9 @@
+#!/bin/sh
+m=$(ls -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/ai-dev-team/metrics/*/ 2>/dev/null | sort -V | tail -n 1)
+[ -n "$m" ] && node "${m}scripts/pr-metrics.mjs" --hook
+dir=$(ls -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/ai-dev-team/guardrails/*/ 2>/dev/null | sort -V | tail -n 1)
+if [ -z "$dir" ]; then
+  echo "pre-commit: install the guardrails plugin (claude plugin install guardrails@ai-dev-team --scope project)" >&2
+  exit 1
+fi
+exec node "${dir}scripts/pre-commit.mjs"

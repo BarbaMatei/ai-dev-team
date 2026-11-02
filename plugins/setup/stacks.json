@@ -1,0 +1,61 @@
+{
+  "dotnet": {
+    "test": { "command": "dotnet test --filter \"FullyQualifiedName~{filter}\"", "format": "dotnet", "buildError": "error CS\\d{4}|Build FAILED" },
+    "projectFile": ["*.sln", "*.slnx", "*.csproj"],
+    "ci": {
+      "setup": { "uses": "actions/setup-dotnet@v4", "with": { "dotnet-version": "8.0.x" } },
+      "steps": [
+        { "name": "Restore", "run": "dotnet restore" },
+        { "name": "Build", "run": "dotnet build --no-restore" },
+        { "name": "Test", "run": "dotnet test --no-build" }
+      ]
+    },
+    "gitignore": ["bin/", "obj/", "*.user", "appsettings.*.Local.json", "TestResults/"],
+    "indent": 4,
+    "boot": { "api": { "command": "dotnet run", "ready": "tcp://localhost:5000" } }
+  },
+  "angular": {
+    "test": { "command": "npx ng test --watch=false --include=\"**/{filter}*.spec.ts\"", "format": "vitest", "buildError": "error TS\\d+|Transform failed" },
+    "projectFile": ["package.json"],
+    "ci": {
+      "setup": { "uses": "actions/setup-node@v4", "with": { "node-version": "22" } },
+      "steps": [
+        { "name": "Install", "run": "npm ci" },
+        { "name": "Test", "run": "npm test -- --watch=false" },
+        { "name": "Build", "run": "npm run build --if-present" }
+      ]
+    },
+    "gitignore": ["node_modules/", "dist/", ".angular/", "coverage/"],
+    "indent": 2,
+    "boot": { "web": { "command": "npm start", "ready": "http://localhost:4200/" } }
+  },
+  "node": {
+    "test": { "command": "npm test -- {filter}", "format": "vitest" },
+    "projectFile": ["package.json"],
+    "ci": {
+      "setup": { "uses": "actions/setup-node@v4", "with": { "node-version": "22" } },
+      "steps": [
+        { "name": "Install", "run": "npm ci" },
+        { "name": "Test", "run": "npm test" },
+        { "name": "Build", "run": "npm run build --if-present" }
+      ]
+    },
+    "gitignore": ["node_modules/", "dist/", "coverage/"],
+    "indent": 2,
+    "boot": { "web": { "command": "npm run dev", "ready": "http://localhost:5173/" } }
+  },
+  "python": {
+    "test": { "command": "python -m pytest -k \"{filter}\"" },
+    "projectFile": ["pyproject.toml", "requirements.txt"],
+    "ci": {
+      "setup": { "uses": "actions/setup-python@v5", "with": { "python-version": "3.12" } },
+      "steps": [
+        { "name": "Install", "run": "if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install -e .; fi" },
+        { "name": "Test", "run": "pip install pytest && python -m pytest" }
+      ]
+    },
+    "gitignore": ["__pycache__/", "*.pyc", ".venv/", ".pytest_cache/", "*.egg-info/"],
+    "indent": 4,
+    "boot": {}
+  }
+}
