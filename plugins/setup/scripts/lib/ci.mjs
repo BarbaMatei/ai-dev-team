@@ -8,6 +8,10 @@ export function ciJobNames(answers) {
 
 const block = (cmd, pad) => `${pad}run: |\n${cmd.split('\n').map((l) => `${pad}  ${l}`).join('\n')}\n`;
 
+const PROBE = (files) => `for f in ${files}; do
+  if [ -e "$f" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; break; fi
+done`;
+
 function job(stack, def) {
   const probe = def.projectFile.map((f) => path.posix.join(stack.dir, f)).join(' ');
   const lines = [
@@ -23,7 +27,7 @@ function job(stack, def) {
     '      - id: project',
     '        name: Look for the project file',
     '        working-directory: .',
-    `        run: if ls ${probe} >/dev/null 2>&1; then echo "found=true" >> "$GITHUB_OUTPUT"; fi`,
+    block(PROBE(probe), '        ').trimEnd(),
     `      - ${FOUND}`,
     `        uses: ${def.ci.setup.uses}`,
     '        with:',

@@ -136,20 +136,37 @@ test('each ci job skips cleanly when its project file is missing', () => {
 
 const hasBash = spawnSync('bash', ['-c', 'exit 0'], { env: cleanEnv() }).status === 0;
 
-test('the ci probe finds the project file from the repository root', { skip: hasBash ? false : 'bash is not available' }, () => {
-  const ci = get(answers(), '.github/workflows/ci.yml');
-  const web = ci.split(/^ {2}(?=web:)/m)[1];
-  const probe = web.split(/^ {6}- /m)[2].match(/^ {8}run: (.*)$/m)[1];
+function probeOf(ci, role) {
+  const job = ci.split(new RegExp(`^ {2}(?=${role}:)`, 'm'))[1];
+  const step = job.split(/^ {6}- /m)[2];
+  return step.slice(step.indexOf('run: |\n') + 7).split('\n').map((l) => l.slice(10)).join('\n');
+}
+
+function probeRuns(stackId, file) {
+  const ci = get(answers({ stacks: [{ id: stackId, dir: 'src/x', role: 'api' }] }), '.github/workflows/ci.yml');
+  const probe = probeOf(ci, 'api');
   const repo = path.join(base, `p${n++}`);
-  fs.mkdirSync(path.join(repo, 'src', 'web'), { recursive: true });
+  fs.mkdirSync(path.join(repo, 'src', 'x'), { recursive: true });
   const run = () => {
-    spawnSync('bash', ['-c', probe], { cwd: repo, env: { ...cleanEnv(), GITHUB_OUTPUT: 'out.txt' } });
+    spawnSync('bash', ['-eo', 'pipefail', '-c', probe], { cwd: repo, env: { ...cleanEnv(), GITHUB_OUTPUT: 'out.txt' } });
     const f = path.join(repo, 'out.txt');
     return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
   };
-  assert.equal(run(), '');
-  fs.writeFileSync(path.join(repo, 'src', 'web', 'package.json'), '{}');
-  assert.equal(run(), 'found=true\n');
+  const before = run();
+  fs.writeFileSync(path.join(repo, 'src', 'x', file), '');
+  return { before, after: run() };
+}
+
+test('the ci probe finds the project file from the repository root', { skip: hasBash ? false : 'bash is not available' }, () => {
+  assert.deepEqual(probeRuns('node', 'package.json'), { before: '', after: 'found=true\n' });
+});
+
+test('the dotnet ci probe finds a solution when the other patterns match nothing', { skip: hasBash ? false : 'bash is not available' }, () => {
+  assert.deepEqual(probeRuns('dotnet', 'App.sln'), { before: '', after: 'found=true\n' });
+});
+
+test('the python ci probe finds pyproject.toml when requirements.txt is absent', { skip: hasBash ? false : 'bash is not available' }, () => {
+  assert.deepEqual(probeRuns('python', 'pyproject.toml'), { before: '', after: 'found=true\n' });
 });
 
 test('semantic-release and kit release render different release files', () => {
