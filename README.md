@@ -16,6 +16,7 @@ A small Claude Code plugin marketplace. Each plugin is standalone, written in pl
 | [ui-review](plugins/ui-review/README.md) | Reviews screenshots against design tokens and UI rules; a script checks every contrast claim | `uiReview` |
 | [architect](plugins/architect/README.md) | Proposes features, improvements and gaps from code, specs and open issues; a script checks every cite | `architect`, `rulesDir`, `areas` |
 | [release](plugins/release/README.md) | Works out each package's next version from conventional commits; writes its version file, changelog and tag; a GitHub action pushes and publishes the release | `release` |
+| [setup](plugins/setup/README.md) | Starts a new web project (interview, specsmd, AI setup, CI, secret scan, protection, releases, first feature) and keeps existing ones current with the kit | `setup` (written by the plugin) |
 
 Each plugin is versioned on its own (tags `<name>-vX.Y.Z`). A merge to main releases each changed plugin; its CHANGELOG.md and the GitHub releases page list its versions.
 
@@ -55,6 +56,4 @@ Each plugin's README says what its keys do. `format` is `dotnet` or `vitest` (an
 node --test "plugins/*/tests/*.test.mjs" "tests/*.test.mjs"
 ```
 
-## License
-
-MIT
+License: MIT.

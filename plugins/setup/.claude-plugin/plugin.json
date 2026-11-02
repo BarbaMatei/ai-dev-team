@@ -1,0 +1,8 @@
+{
+  "name": "setup",
+  "version": "0.1.0",
+  "description": "Starts a new web project's AI setup, CI, secret scan and releases from an answers file, and keeps existing projects current.",
+  "author": { "name": "Matei Barba" },
+  "license": "MIT",
+  "repository": "https://github.com/BarbaMatei/ai-dev-team"
+}
