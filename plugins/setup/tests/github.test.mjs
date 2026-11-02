@@ -89,6 +89,7 @@ test('apply creates only the missing labels', () => {
   const creates = p.calls().filter((c) => c.argv[0] === 'label' && c.argv[1] === 'create');
   assert.deepEqual(creates.map((c) => c.argv[2]), ['proposal', 'severity:serious']);
   assert.ok(creates[0].argv.includes('someone/my-shop'));
+  assert.deepEqual(creates[1].argv, ['label', 'create', 'severity:serious', '-R', 'someone/my-shop', '--color', 'b60205', '--description', 'Serious defect']);
 });
 
 test('an organization gets the Actions bypass and no release key', () => {
