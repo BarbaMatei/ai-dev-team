@@ -58,7 +58,7 @@ export async function screenshot(page, file) {
   fs.writeFileSync(file, Buffer.from(data, 'base64'));
 }
 
-async function go(page, step, dl) {
+async function navigate(page, step, dl) {
   const { net } = page;
   net.open.clear();
   net.skip.clear();
@@ -72,6 +72,32 @@ async function go(page, step, dl) {
   if (nav.loaderId) await within(loaded, dl, `no load event after ${dl.ms} ms`);
   net.last = Date.now();
   while (Date.now() < dl.at && !(net.open.size === 0 && Date.now() - net.last >= 500)) await sleep(50);
+}
+
+export const OVERLAY = `(() => {
+  const first = (s) => (s || '').split('\\n').map((l) => l.trim()).find(Boolean) || '';
+  const v = document.querySelector('vite-error-overlay');
+  if (v) { const r = v.shadowRoot; return 'vite ' + first((r?.querySelector('.message-body') ?? r?.querySelector('.message') ?? v).textContent); }
+  const w = document.querySelector('#webpack-dev-server-client-overlay');
+  if (!w) return null;
+  try { return 'webpack ' + first(w.contentDocument.body.innerText); } catch { return null; }
+})()`;
+
+async function overlay(page, dl) {
+  const v = await evaluate(page, OVERLAY, dl).catch(() => null);
+  return typeof v === 'string' && v !== '' ? clip(v) : null;
+}
+
+const overlayError = (text) => new Error(`dev-server error overlay: ${text}`);
+
+async function go(page, step, dl, ctx) {
+  await navigate(page, step, dl);
+  const first = await overlay(page, dl);
+  if (!first) return;
+  ctx.out(`overlay ${step.n} ${first}`);
+  await navigate(page, step, dl);
+  const again = await overlay(page, dl);
+  if (again) throw overlayError(again);
 }
 
 async function press(page, key) {
@@ -97,11 +123,13 @@ export async function runStep(raw, step, ctx) {
   const dl = clock(step);
   const page = { ...raw, send: (m, p) => within(raw.send(m, p), dl, (TIMED_OUT[m] ?? ((ms) => `${m} timed out after ${ms} ms`))(dl.ms)) };
   const notFound = `not found after ${step.timeoutMs} ms`;
-  if (step.action === 'go') return go(page, step, dl);
+  if (step.action === 'go') return go(page, step, dl, ctx);
   if (step.action === 'sleep') return sleep(arg);
   if (step.action === 'press') return press(page, arg);
   if (step.action === 'upload') return upload(page, step, dl);
   if (step.action === 'shot') {
+    const found = await overlay(page, dl);
+    if (found) throw overlayError(found);
     const file = path.join(ctx.outDir, `${arg}.png`);
     await screenshot(page, file);
     return ctx.out(`shot ${file}`);

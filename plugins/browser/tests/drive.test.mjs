@@ -7,7 +7,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { matchFake } from '../scripts/lib/fakes.mjs';
-import { LOCATE } from '../scripts/lib/actions.mjs';
+import { LOCATE, OVERLAY } from '../scripts/lib/actions.mjs';
 
 const script = fileURLToPath(new URL('../scripts/drive.mjs', import.meta.url));
 const fake = fileURLToPath(new URL('./fake-cdp.mjs', import.meta.url));
@@ -526,4 +526,39 @@ test('a missing browser.baseUrl with the old e2e key present tells to rename the
   const r = run(t);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /browser\.baseUrl.*; the settings moved from the "e2e" key to "browser": rename the key/);
+});
+
+test('an error overlay after go is loaded once more, then fails the step with an overlay line', () => {
+  const t = setup([{ go: '/' }], { cdp: { replies: { 'Runtime.evaluate': [val('vite TS2339: Property x does not exist')] } } });
+  const r = run(t);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(lines(r).includes('overlay 1 vite TS2339: Property x does not exist'), r.stdout);
+  assert.ok(lines(r).some((l) => l.startsWith('fail 1 go /: dev-server error overlay: vite TS2339')), r.stdout);
+  assert.equal(calls(t.log).filter((c) => c.method === 'Page.navigate').length, 2);
+});
+
+test('an overlay gone after the second load lets the run continue', () => {
+  const t = setup([{ go: '/' }], { cdp: { replies: { 'Runtime.evaluate': [val('vite x'), val(null)] } } });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(lines(r).includes('overlay 1 vite x'), r.stdout);
+  assert.equal(calls(t.log).filter((c) => c.method === 'Page.navigate').length, 2);
+});
+
+test('a shot with an overlay on the page fails instead of saving <name>.png', () => {
+  const t = setup([{ shot: 'home' }], { cdp: { replies: { 'Runtime.evaluate': [val('webpack Module not found')] } } });
+  const r = run(t);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(lines(r).some((l) => l.startsWith('fail 1 shot home: dev-server error overlay: webpack Module not found')), r.stdout);
+  assert.equal(fs.existsSync(path.join(t.out, 'home.png')), false);
+  assert.ok(fs.existsSync(path.join(t.out, 'fail-1.png')));
+});
+
+test('the overlay probe reads the first non-empty line of a vite or webpack overlay and is null on a clean page', () => {
+  const doc = (map) => ({ document: { querySelector: (s) => map[s] ?? null } });
+  const vite = { shadowRoot: { querySelector: (s) => (s === '.message-body' ? { textContent: '\n  TS2339: bad\nmore' } : null) } };
+  assert.equal(vm.runInNewContext(OVERLAY, doc({ 'vite-error-overlay': vite })), 'vite TS2339: bad');
+  const webpack = { contentDocument: { body: { innerText: '\nCompile error\nx' } } };
+  assert.equal(vm.runInNewContext(OVERLAY, doc({ '#webpack-dev-server-client-overlay': webpack })), 'webpack Compile error');
+  assert.equal(vm.runInNewContext(OVERLAY, doc({})), null);
 });
