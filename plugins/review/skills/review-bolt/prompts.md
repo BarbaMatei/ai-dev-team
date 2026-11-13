@@ -23,7 +23,7 @@ Invoke the `security-review` skill with the Skill tool, limited to the changes i
 ```
 Fix one proven bug. Its failing test becomes the regression test.
 Bug: <claim> at <file:line>
-Test: run only it: <command> in <dir>, with {filter} replaced by <filter>, with these environment variables set: <env>. It fails now.
+Test: run only it: <command> in <dir>, with {filter} replaced by <filter>, with these environment variables set: <env>. It fails now. (test name: <test name>)
 1. Make that test pass with the smallest change to production code. Fix it where the behaviour is owned; never put one feature's text or rule into shared code to make the test pass. Change nothing else: not the test, no refactors, no comments, no other behaviour. Exception: an existing test that asserts exactly the behaviour your fix removes may change, only that assertion.
 2. The same bug at more than one site: fix each, and add one regression test per extra site beside the proving test, in its style.
 3. Run only those tests; they must pass. Do not commit. Never run git checkout, git restore, git stash or git clean: other proving tests are uncommitted in this tree; undo your own edits by editing the files.

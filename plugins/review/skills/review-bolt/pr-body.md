@@ -22,13 +22,13 @@ Rounds: <0|1|2> · proven: <n> · discarded: <n> · unverified: <n>
 
 | Finding | Fix | Regression test | mutate-check |
 |---|---|---|---|
-| <file:line — claim> | <file:line — the fix in a few words; not fixed → "Not fixed, see Needs owner"; superseded → "Superseded by <short sha>: <reason>"; filed → "Filed as #<n>"> | <test name and file> | <GUARDED, NOT GUARDED, the INVALID line, or not mutate-checkable> |
+| <file:line — claim> | <file:line — the fix in a few words; not fixed → "Not fixed, see Needs owner"; superseded → "Superseded by <short sha>: <reason>"; filed → "Filed as #<n>"; `--no-pr` "File it" → "To file (no PR): <claim>"> | <test name and file> | <GUARDED, NOT GUARDED, the INVALID line, or not mutate-checkable> |
 
 <no fixes → "No proven findings." instead of the table>
 
 Tests changed by fixes: <each `UPDATED-TEST` line; none → "None.">
 
-<`--ask` only: "Owner's word per fix:" then one line per fix: `file:line — yes`, `file:line — no: <the owner's words>`, `file:line — superseded by <short sha>: <the owner's words>` or `file:line — filed as #<n>: <the owner's words>`>
+<`--ask` only: "Owner's word per fix:" then one line per fix: `file:line — yes`, `file:line — no: <the owner's words>`, `file:line — superseded by <short sha>: <the owner's words>`, `file:line — filed as #<n>: <the owner's words>` or `file:line — to file: <the owner's words>`>
 
 <Rounds = 2 only: "Round 2 reviewed only the fix lines (<n> findings outside them dropped). Round-2 fixes are covered by their proving tests and are not re-reviewed.">
 

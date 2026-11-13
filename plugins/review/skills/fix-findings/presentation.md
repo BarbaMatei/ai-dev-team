@@ -21,7 +21,7 @@ The owner reads these one at a time in a chat window, often as a non-programmer,
 
 **Settings:** <what fix-setup found, one line; each gap with what you will do instead>
 **Writes outside this repo:** a comment on each of these issues at the end, new issues only when you say yes, one branch and one PR (you merge it).
-**At the end:** a final review tidies the code on its own (the PR lists every tidy-up) and brings you each bug it proves, like these.
+**At the end:** a final tidy-up (the PR lists every tidy-up), and unless you pick the tidy-up only, a code review that brings you each bug it proves, one at a time, like these.
 
 <The one question the batch needs first: "Is the app running at <address>, or shall I start it?" (browser or API bugs); "Can you save <document> and give me its path?" (an outside rule without its source); else the service the tests need.>
 ```

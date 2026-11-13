@@ -36,7 +36,7 @@ A review finding survives only when a fresh subagent's test fails for the claime
 Prove or disprove one review finding. Change no production code.
 Claim: <claim>
 Where: <file:line>
-1. Find the existing tests for this code. Beside them, in their style, add the smallest test that fails if the claim is true. Mock only at system boundaries, never the code the claim is about. A fake at a boundary may only take states, transitions and errors the real dependency produces: read the real client or SDK code it stands for. If an existing test asserts the behaviour the claim calls wrong, or the claim contradicts a by-design decision listed here: <by-design list or none>, add no test and reply `BY-DESIGN — <that test's name, or the decision>`.
+1. Find the existing tests for this code. Beside them, in their style, add the smallest test that fails if the claim is true; its own name must not contain `"`, a backtick, `$` or `%` (mutate-check refuses them for `--test-name`). Mock only at system boundaries, never the code the claim is about. A fake at a boundary may only take states, transitions and errors the real dependency produces: read the real client or SDK code it stands for. If an existing test asserts the behaviour the claim calls wrong, or the claim contradicts a by-design decision listed here: <by-design list or none>, add no test and reply `BY-DESIGN — <that test's name, or the decision>`.
 2. Run only that test: <command> in <dir>, with {filter} replaced by a filter that matches only your test, and these environment variables set: <env>. Never run git checkout, git restore, git stash or git clean: other provers' tests are uncommitted in this tree.
 3. Reply with exactly one of:
    PROVEN — test <kind> <the exact text you put in place of {filter}> in <test file> — name <your test's own name> — models: <the real-world sequence the test stands for, one clause> — <the failing assertion line, with expected and actual>
@@ -59,7 +59,7 @@ Where: <file:line>
 Only these lines: every PROVEN line (most severe first, never dropped), then UNVERIFIED lines only while the whole output, `discarded:` line included, stays at most 10 lines, then BY-DESIGN lines under the same cap, then the `discarded:` line. Each UNVERIFIED left out counts as `untestable`. Every by-design claim counts in the `by-design` number of `discarded:`, printed or not; BY-DESIGN lines are printed only while the output stays within the cap.
 
 ```
-PROVEN <file:line> — <claim> — test <kind> <filter> — name <test name> — pattern <regex or none>
+PROVEN <file:line> — <claim> — test <kind> <filter> — name <test name> — pattern <regex, or none — what is missing>
 UNVERIFIED <file:line> — <claim> — repro: <steps>
 BY-DESIGN <file:line> — <claim>
 discarded: <n> (<n> style/doc/consider, <n> missing-test, <n> by-design, <n> disproven, <n> untestable)

@@ -17,7 +17,7 @@ You review one finished branch (a bolt = one unit of work on its own branch, rev
 - **Config:** `<project>/.claude/ai-dev-team.json`: `tests` (each `<kind>` has a `command` with `{filter}`, an optional `cwd`, `env` pairs and `nameArg`; `.claude/ai-dev-team.local.json` overrides them on this machine), `bugs.label` (default `bug`). `<env>` = the kind's env pairs as `NAME=value`, or `none`; every prompt that runs a test carries them.
 - **Built-ins:** `simplify`, `code-review` and `security-review` each run inside one fresh subagent (steps 4, 6, 7 and 14; `subagent_type: general-purpose`, `model: sonnet`): they load the whole diff into the context they run in. They invoke the built-in `code-review`, never a plugin's `code-review:code-review`.
 - **Record file:** `<tmp>/review-bolt-record-<branch with / replaced by ->.md`. Append as each arrives: every prove-findings output verbatim, every fixer reply line, every `UPDATED-TEST` line, each mutate-check verdict, each owner word (with `--ask`), the round-2 "outside the fix lines" count and every "Needs owner" item; owner decisions made during the session, one line each. After a context summary, read it before the next step; step 21 writes the PR body from it.
-- **By-design:** every prove-findings call (steps 8 and 15) passes `By-design:` with the record file's owner-decision lines, one per line; none → leave it out.
+- **By-design:** every prove-findings call (steps 8 and 15) passes `By-design:` with the record file's owner-decision lines, one per line; none → leave it out. These lines are only the owner's decisions made in the session, kept in the record file apart from the per-fix yes/no/superseded/filed words.
 
 ## Start
 
@@ -38,7 +38,7 @@ You review one finished branch (a bolt = one unit of work on its own branch, rev
 
 ## Fix
 
-9. For each PROVEN line, one at a time (fixers share the tree), dispatch the step-9 fixer. `<command>`/`<dir>`/`<env>` come from `tests.<kind>`, as in `prove-findings`.
+9. For each PROVEN line, one at a time (fixers share the tree), dispatch the step-9 fixer. `<command>`/`<dir>`/`<env>` come from `tests.<kind>`, as in `prove-findings`; `<filter>` and `<test name>` come from the PROVEN line.
 10. STUCK → copy the proving test into "Needs owner" as a code block with the default you would take, then remove that test from its file by editing it.
 
 ## Ask — only with `--ask`
@@ -61,7 +61,7 @@ C. Yes → `git apply <patch>`; it fails → `git apply --ignore-whitespace <pat
 
 ## Commit and check
 
-17. Run every regression test, scoped, plus the scoped tests covering every file the fixes changed (same scoping as step 5). One fails → back to that fixer once (steps 9-10); still failing → "Needs owner". Then commit what is uncommitted with a one-line conventional message (with `--ask` the approved fixes are already committed).
+17. Run every regression test, scoped, plus the scoped tests covering every file the fixes changed (scoped to the touched files, never the whole suite). One fails → back to that fixer once (steps 9-10); still failing → "Needs owner". Then commit what is uncommitted with a one-line conventional message (with `--ask` the approved fixes are already committed).
 18. Per fix: `<kind>` is `-` → record `not mutate-checkable`. Else confirm the "now" text is still at `<file:line>` (re-find it if lines moved), write the pre-fix text to `<tmp>/pre-fix-<n>.txt` with the Write tool, then `node "<scripts>/mutate-check.mjs" --file <file> --line <n> --replace-file <tmp>/pre-fix-<n>.txt --kind <kind> --test "<filter>"`, plus `--test-name "<test name>"` when the kind has `nameArg`; empty pre-fix → no `--replace-file`. The verdict is the last line of its output.
 19. `NOT GUARDED` → once per fix, the step-19 subagent; commit, re-run mutate-check once; still not `GUARDED` → "Needs owner". `INVALID: build broke` → retry once with a pre-fix file that compiles. `INVALID: no test ran` → fix `--test`/`--test-name` from the PROVEN line and retry once. Record each final verdict.
 20. Per PROVEN finding: `node "<scripts>/decisions.mjs" --path <file> --text "<claim>"`; `decision:` lines → "Past decisions".
