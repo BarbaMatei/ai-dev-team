@@ -86,7 +86,7 @@ async function main() {
   const command = t.command.replaceAll('{filter}', () => test);
   const cwd = path.join(root, t.cwd);
   const say = (verdict, withDiff = true, code = 1, note = []) => {
-    process.stdout.write(`${[verdict, ...(withDiff ? [`- ${oldLine}`, `+ ${newLine}`] : []), ...note].join('\n')}\n`);
+    process.stdout.write(`${[...(withDiff ? [`- ${oldLine}`, `+ ${newLine}`] : []), ...note, verdict].join('\n')}\n`);
     process.exitCode = code;
   };
 
