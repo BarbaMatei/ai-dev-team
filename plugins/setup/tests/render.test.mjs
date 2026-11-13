@@ -100,6 +100,7 @@ test('ai-dev-team.json tests and browser come from the stacks', () => {
     ],
   });
   assert.deepEqual([cfg.testLock, cfg.testGuard, cfg.rulesDir, cfg.triggers, cfg.bugs, cfg.metrics], [true, true, '.claude/rules', [], { label: 'bug' }, { since: 1 }]);
+  assert.deepEqual(cfg.comments, { ignore: ['.specsmd/**'] });
   assert.deepEqual(cfg.setup, { ...answers(), version: pluginVersion });
   const lib = answers({ stacks: [{ id: 'python', dir: 'lib', role: 'lib' }] });
   const libCfg = JSON.parse(get(lib, '.claude/ai-dev-team.json'));
