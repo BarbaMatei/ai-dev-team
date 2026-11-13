@@ -16,3 +16,12 @@ test('loadLocalConfig merges objects, replaces arrays, and names the local file 
   put(dir, '.claude/ai-dev-team.local.json', '[]');
   assert.throws(() => loadLocalConfig(dir), /^Error: \.claude\/ai-dev-team\.local\.json: expected a JSON object/);
 });
+
+test('loadLocalConfig ignores a __proto__ key in the local file', () => {
+  const dir = repo({}, { keep: 1 });
+  put(dir, '.claude/ai-dev-team.local.json', '{"__proto__":{"polluted":true},"keep":2}');
+  const cfg = loadLocalConfig(dir);
+  assert.equal(cfg.keep, 2);
+  assert.equal(cfg.polluted, undefined);
+  assert.equal(Object.getPrototypeOf(cfg), Object.prototype);
+});

@@ -45,7 +45,7 @@ const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
 function merge(base, over) {
   const out = { ...base };
-  for (const [k, v] of Object.entries(over)) out[k] = isObject(v) && isObject(base[k]) ? merge(base[k], v) : v;
+  for (const [k, v] of Object.entries(over)) if (k !== '__proto__') out[k] = isObject(v) && isObject(base[k]) ? merge(base[k], v) : v;
   return out;
 }
 
