@@ -149,3 +149,18 @@ test('comments: an Edit that lengthens an existing comment is reported', () => {
   const r = call(d, 'comments', 'Edit', { file_path: path.join(d, 'a.ts'), old_string: '// keep\nlet a;', new_string: '// keep the order\nlet a;' });
   assert.equal(r.code, 2);
 });
+
+test('comments: an edit to a file outside the project is not checked', () => {
+  const d = repo();
+  const outside = path.join(base, `outside${n++}`);
+  fs.mkdirSync(outside);
+  const r = call(d, 'comments', 'Write', { file_path: path.join(outside, 'scratch.ts'), content: '// note\n' });
+  assert.equal(r.code, 0);
+});
+
+test('secrets: an edit to a file outside the project is still checked', () => {
+  const d = repo();
+  const outside = path.join(base, `outside${n++}`);
+  fs.mkdirSync(outside);
+  assert.equal(call(d, 'secrets', 'Write', { file_path: path.join(outside, 'scratch.ts'), content: sk }).code, 2);
+});
