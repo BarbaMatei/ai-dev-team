@@ -28,7 +28,7 @@ Skip steps 1 and 3 when every `go` in the steps file is a full `http(s)://` addr
 { "viewport": "1280x800", "timeoutMs": 10000, "steps": [ { "go": "/login" }, { "type": "#email", "text": "a@b.test" }, { "press": "Enter" }, { "wait": ".welcome" }, { "shot": "after-login" } ] }
 ```
 
-`viewport` (default `1280x800`) and `timeoutMs` (default `browser.stepTimeoutMs`, else 10000, the wait for every step) are optional; the first `go` waits at least 60000 ms for its load event unless a `timeoutMs` is set (a dev server's first page build is slow). A step has exactly one action; any step may add `timeoutMs`.
+`viewport` (default `1280x800`) and `timeoutMs` (default `browser.stepTimeoutMs`, else 10000, the wait for every step) are optional; the first `go` step without its own `timeoutMs` waits at least 60000 ms for its load event, unless the steps file sets `timeoutMs` (a dev server's first page build is slow). A step has exactly one action; any step may add `timeoutMs`.
 
 - `go`: a route (joined to `browser.baseUrl`) or a full `http(s)://` address; waits for the load event, then for 500 ms without open requests. Then checks for a dev-server error overlay: one there prints `overlay <n> <its first line>`, the page is loaded once more, and the step fails if the overlay stays.
 - `wait`: a CSS selector, until present and visible.
