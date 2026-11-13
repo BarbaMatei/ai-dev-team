@@ -14,9 +14,9 @@ Proven code review for Claude Code: a review finding counts only when a failing 
 | `areas.mjs` | Touched areas and trigger, files of an area, areas of a file, the same bug shape nearby | `rulesDir`, `areas`, `triggers` |
 | `decisions.mjs` | Matches a finding to past owner decisions | `decisions` |
 | `mutate-check.mjs` | Breaks one line, requires the test to fail, restores the file | `tests` |
-| `fix-setup.mjs` | Prints the settings a fix session needs, with what to do instead for each missing one | `tests`, `browser`, `fix` |
+| `fix-setup.mjs` | Prints the settings a fix session needs, the container engine and each outside service's state, with what to do instead for each missing one | `tests`, `browser`, `fix` |
 
-A bolt is one unit of work on its own branch, reviewed as one PR. An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry; in `areas`, a glob starting with `!` excludes the files it matches, and an exclusion in a config area merged into a rule area applies to that rule area too. `fix` (all optional strings): `accounts` (where the test accounts are), `dataQuery` (a read-only query command with `{sql}`), `logs` (where the server log goes), `apiCopy` (starts an own server copy on `{port}`), `mail` (the email catcher's address), `callers` (a command with `{symbol}`).
+A bolt is one unit of work on its own branch, reviewed as one PR. An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry; in `areas`, a glob starting with `!` excludes the files it matches, and an exclusion in a config area merged into a rule area applies to that rule area too. `fix` (all optional strings): `accounts` (where the test accounts are), `dataQuery` (a read-only query command with `{sql}`), `logs` (where the server log goes), `apiCopy` (starts an own server copy on `{port}`), `mail` (the email catcher's address), `callers` (a command with `{symbol}`). `fix.services` maps a name to a check command (`"payment keys": "node scripts/check-keys.mjs"`): exit 0 = ready, and the command prints a status, never a key.
 
 ```json
 {
