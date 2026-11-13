@@ -6,7 +6,7 @@ Start the app, take screenshots of its pages and drive it like a person. Other p
 
 - `app.mjs up|down|status` starts the app's parts in order (for example the API, then the web server), waits until each answers, and stops them again with everything they started. A part that already runs is reused and left alone.
 - `shots.mjs` takes one PNG per page and screen size with a headless browser, using the DevTools protocol, so phone viewport widths are exact. One browser profile is shared across the shots of a run. `BROWSER_START_TIMEOUT_MS` (default 15000) is for tests only.
-- `drive.mjs <steps.json> <out-dir>` runs a steps file (go, wait, click, type, press, upload, eval, shot) with real mouse and keyboard events and prints the page's console errors, exceptions, failed requests and API responses. A failed step saves `fail-<n>.png` and exits 1. A top-level `fake` list answers chosen requests with made-up replies (JSON, text or a file), so a page can be shown with rare or large data without touching real data.
+- `drive.mjs <steps.json> <out-dir>` runs a steps file (go, wait, click, type, press, upload, eval, shot) with real mouse and keyboard events and prints the page's console errors, exceptions, failed requests and API responses. A failed step saves `fail-<n>.png` and exits 1. After a `go` and before a `shot`, drive checks for a dev-server error overlay: it reloads once, then fails the step if the overlay stays. A top-level `fake` list answers chosen requests with made-up replies (JSON, text or a file), so a page can be shown with rare or large data without touching real data.
 - Skill `browser:app` runs `app.mjs`. Arg: `up|down|status`.
 - Skill `browser:capture` boots the app, takes the screenshots and returns the folder. Args: `<route>... [--viewports 390x844,1280x800] [--wait <ms>] [--keep]`.
 - Skill `browser:drive` boots the app, runs a steps file and returns the log. Args: `<steps.json> [--keep]`. The skill lists every step.
@@ -32,7 +32,10 @@ In `<project>/.claude/ai-dev-team.json`. Set at least `baseUrl`.
 
 - `boot[].ready`: an `http(s)://` address that answers with any status below 400, or `tcp://host:port` that accepts a connection. Without a `command` the part must already run.
 - `timeoutSec`: how long to wait for each part (default 120).
+- `stepTimeoutMs`: the default wait for every drive step (default 10000); the first `go` of a run waits at least 60000 ms unless a `timeoutMs` is set.
 - `exe`: a path, or a list `[exe, ...args]`. A path that does not exist is an error. Unset: the `CHROME_PATH` variable, then the usual install places, then `google-chrome`, `chromium`, `msedge` on the PATH.
+
+A `browser` object in `.claude/ai-dev-team.local.json` overrides these keys on this machine only (for example another port); add it to `.gitignore`.
 
 An invalid setting prints one line and exits 2.
 

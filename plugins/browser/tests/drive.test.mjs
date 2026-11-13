@@ -587,3 +587,14 @@ test('a stepTimeoutMs that is not a positive number exits 2', () => {
   assert.match(r.stderr, /browser.stepTimeoutMs must be a positive number/);
   assert.equal(fs.existsSync(t.log), false);
 });
+
+test('a baseUrl in .claude/ai-dev-team.local.json replaces the committed one', () => {
+  const t = setup([{ go: '/x' }]);
+  fs.writeFileSync(path.join(t.dir, '.claude', 'ai-dev-team.local.json'), JSON.stringify({ browser: { baseUrl: 'http://localhost:7' } }));
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(
+    calls(t.log).filter((c) => c.method === 'Page.navigate').map((c) => c.params.url),
+    ['http://localhost:7/x'],
+  );
+});
