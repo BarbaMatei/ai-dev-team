@@ -158,6 +158,11 @@ test('comments: an edit to a file outside the project is not checked', () => {
   assert.equal(r.code, 0);
 });
 
+test('comments: a project file under a folder named ..cache is still checked', () => {
+  const d = repo();
+  assert.equal(call(d, 'comments', 'Write', { file_path: path.join(d, '..cache', 'a.ts'), content: '// note\n' }).code, 2);
+});
+
 test('secrets: an edit to a file outside the project is still checked', () => {
   const d = repo();
   const outside = path.join(base, `outside${n++}`);
