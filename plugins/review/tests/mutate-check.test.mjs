@@ -186,3 +186,21 @@ test('GUARDED without buildError carries the note, with buildError it does not',
   const r2 = mc(proj(src, { t: { command: 'node check.mjs', buildError: 'BUILD BROKE' } }), ['--line', '2', '--replace', 'x']);
   assert.ok(!r2.out.includes('note:'));
 });
+
+const lastLine = (r) => r.out.trimEnd().split('\n').at(-1);
+const fake = (body) => ["import fs from 'node:fs';", body, ''].join('\n');
+
+test('a baseline that runs no test gives INVALID: no test ran, and the file is untouched', () => {
+  const dir = proj('one\nkeep\nthree\n', { t: { command: 'node check.mjs {filter}' } }, { 'check.mjs': fake("console.log('No test matches the given testcase filter');") });
+  const r = mc(dir, ['--line', '2']);
+  assert.equal(r.code, 1, r.out + r.err);
+  assert.equal(lastLine(r), 'INVALID: no test ran: --test is the value put in place of {filter} in: node check.mjs x');
+  assert.equal(read(dir).toString(), 'one\nkeep\nthree\n');
+});
+
+test('"No test files found" with exit 1 gives the no-test INVALID, not "fails before"', () => {
+  const dir = proj('one\nkeep\nthree\n', undefined, { 'check.mjs': fake("console.log('No test files found'); process.exit(1);") });
+  const r = mc(dir, ['--line', '2']);
+  assert.equal(r.code, 1);
+  assert.match(lastLine(r), /^INVALID: no test ran: --test is the value put in place of \{filter\} in: node check\.mjs$/);
+});

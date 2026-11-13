@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, projectRoot } from './lib/project.mjs';
+import { ranNoTest } from './lib/runner.mjs';
 
 export function mutateLine(text, lineNo, replacement) {
   const parts = text === '' ? [] : text.split(/(?<=\n)/);
@@ -90,6 +91,7 @@ async function main() {
   };
 
   const baseline = await runCommand(command, cwd);
+  if (ranNoTest(baseline.out)) return say(`INVALID: no test ran: --test is the value put in place of {filter} in: ${command}`, false);
   if (baseline.code !== 0) return say('INVALID: the test fails before the line is broken', false);
 
   const restore = () => {
