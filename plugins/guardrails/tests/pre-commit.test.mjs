@@ -220,3 +220,50 @@ test('a merge in progress skips the comment gate but not the secret check', () =
   put(d, 'c.txt', `key ${sk}\n`);
   assert.equal(run(d).code, 1);
 });
+
+function commit(dir) {
+  git(dir, ['commit', '-q', '-m', 'base']);
+}
+
+test('an edited comment line that does not grow is not listed', () => {
+  const d = repo();
+  put(d, 'a.cs', '// keep the order #12\nint x;\n');
+  commit(d);
+  put(d, 'a.cs', '// keep the order\nint x;\n');
+  assert.equal(run(d).code, 0);
+});
+
+test('a code line whose trailing comment stays is not listed when its code changes', () => {
+  const d = repo();
+  put(d, 'a.cs', 'x = 1; // BT-2\n');
+  commit(d);
+  put(d, 'a.cs', 'x = compute(); // BT-2\n');
+  assert.equal(run(d).code, 0);
+});
+
+test('a comment that grows when edited is listed', () => {
+  const d = repo();
+  put(d, 'a.cs', '// keep the order\nint x;\n');
+  commit(d);
+  put(d, 'a.cs', '// keep the order of the calls\nint x;\n');
+  const r = run(d);
+  assert.equal(r.code, 1);
+  assert.ok(r.out.includes('a.cs:1: // keep the order of the calls'));
+});
+
+test('a new comment beside an edited one is listed', () => {
+  const d = repo();
+  put(d, 'a.cs', '// first note here\nint x;\n');
+  commit(d);
+  put(d, 'a.cs', '// first note\n// second\nint x;\n');
+  const r = run(d);
+  assert.equal(r.code, 1);
+  assert.ok(r.out.includes('a.cs:2: // second'));
+  assert.ok(!r.out.includes('a.cs:1:'));
+});
+
+test('the gate message says a new comment line always stops here', () => {
+  const d = repo();
+  put(d, 'a.cs', '// n\n');
+  assert.match(run(d).out, /a new comment line always stops here; an edited one passes only when it does not grow\./);
+});

@@ -22,10 +22,7 @@ export function findSecrets(lines, extra = []) {
   return hits;
 }
 
-export function isCommentLine(line) {
-  const t = line.trim();
-  return t.startsWith('//') || t.startsWith('/*') || /\s\/\/(\s|$)/.test(line);
-}
+export { isCommentLine } from './lib/comments.mjs';
 
 function strings(value, key) {
   if (value === undefined) return [];

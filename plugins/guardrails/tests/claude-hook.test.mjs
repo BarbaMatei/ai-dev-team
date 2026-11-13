@@ -137,3 +137,15 @@ test('14 tests: a broken config still blocks', () => {
   const bad = repo('{ nope');
   assert.equal(call(bad, 'tests', 'Bash', { command: 'dotnet test x' }).code, 2);
 });
+
+test('comments: an Edit that shortens an existing comment is not reported', () => {
+  const d = repo();
+  const r = call(d, 'comments', 'Edit', { file_path: path.join(d, 'a.ts'), old_string: '// keep the order #12\nlet a;', new_string: '// keep the order\nlet a;' });
+  assert.equal(r.code, 0);
+});
+
+test('comments: an Edit that lengthens an existing comment is reported', () => {
+  const d = repo();
+  const r = call(d, 'comments', 'Edit', { file_path: path.join(d, 'a.ts'), old_string: '// keep\nlet a;', new_string: '// keep the order\nlet a;' });
+  assert.equal(r.code, 2);
+});

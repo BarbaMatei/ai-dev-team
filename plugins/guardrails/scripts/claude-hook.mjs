@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot, loadConfig, matchesAny, toPosix } from './lib/project.mjs';
-import { findSecrets, isCommentLine, readSettings, unscopedTestReason, testGuardEnabled } from './checks.mjs';
+import { findSecrets, readSettings, unscopedTestReason, testGuardEnabled } from './checks.mjs';
+import { newComments } from './lib/comments.mjs';
 
 const mode = process.argv[2];
 
@@ -76,12 +77,17 @@ process.stdin.on('end', () => {
   } else if (mode === 'comments') {
     if (!settings.extensions.includes(path.extname(abs).toLowerCase())) return;
     for (const e of list) {
-      const known = new Set(lines(e.old).map((l) => l.trim()));
-      for (const l of lines(e.text)) if (isCommentLine(l) && !known.has(l.trim())) out.push(`  ${rel}: ${l.trim()}`);
+      const oldLines = lines(e.old);
+      const newLines = lines(e.text);
+      const before = new Set(oldLines.map((l) => l.trim()));
+      const after = new Set(newLines.map((l) => l.trim()));
+      const added = newLines.filter((l) => !before.has(l.trim()));
+      const removed = oldLines.filter((l) => !after.has(l.trim()));
+      for (const i of newComments(removed, added)) out.push(`  ${rel}: ${added[i].trim()}`);
     }
     if (!out.length) return;
     out.unshift('COMMENT GATE: this edit added comment lines:');
-    out.push('Comments are a last resort: keep only a short line that explains a non-obvious why. Delete or shrink the lines above.');
+    out.push('Comments are a last resort: a new comment line is reported; an edited one passes only when it does not grow.');
   } else {
     return;
   }
