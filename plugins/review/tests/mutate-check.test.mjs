@@ -205,6 +205,35 @@ test('"No test files found" with exit 1 gives the no-test INVALID, not "fails be
   assert.match(lastLine(r), /^INVALID: no test ran: --test is the value put in place of \{filter\} in: node check\.mjs$/);
 });
 
+test("--replace-file puts the file's one line, double quotes included, on the target line", () => {
+  const dir = proj('one\nkeep\nthree\n', undefined, { 'rep.txt': '<input class="a" type="text">\n' });
+  const r = mc(dir, ['--line', '2', '--replace-file', 'rep.txt']);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.deepEqual(r.out.trimEnd().split('\n').slice(0, 2), ['- keep', '+ <input class="a" type="text">']);
+  assert.equal(read(dir).toString(), 'one\nkeep\nthree\n');
+});
+
+test('--replace-file strips a BOM and one CRLF', () => {
+  const dir = proj('one\nkeep\nthree\n', undefined, { 'rep.txt': '\uFEFFx y\r\n' });
+  const r = mc(dir, ['--line', '2', '--replace-file', 'rep.txt']);
+  assert.deepEqual(r.out.trimEnd().split('\n').slice(0, 2), ['- keep', '+ x y']);
+});
+
+test('--replace-file with two lines, a missing file, or together with --replace exits 2', () => {
+  const dir = proj('one\nkeep\n', undefined, { 'two.txt': 'a\nb\n', 'one.txt': 'a\n' });
+  const want = [
+    [['--replace-file', 'two.txt'], /^review: --replace-file must hold exactly one line\n$/],
+    [['--replace-file', 'nope.txt'], /^review: replace file not found: nope\.txt\n$/],
+    [['--replace-file', 'one.txt', '--replace', 'x'], /^review: --replace and --replace-file cannot be combined\n$/],
+  ];
+  for (const [args, re] of want) {
+    const r = mc(dir, ['--line', '2', ...args]);
+    assert.equal(r.code, 2, `${args} ${r.out}${r.err}`);
+    assert.match(r.err, re);
+  }
+  assert.equal(read(dir).toString(), 'one\nkeep\n');
+});
+
 test('the verdict is the last line for GUARDED, NOT GUARDED and INVALID', () => {
   const src = 'one\nkeep\nthree\n';
   assert.equal(lastLine(mc(proj(src), ['--line', '2'])), 'GUARDED');
@@ -213,4 +242,50 @@ test('the verdict is the last line for GUARDED, NOT GUARDED and INVALID', () => 
   const built = mc(proj(src, { t: { command: 'node check.mjs', buildError: 'BUILD BROKE' } }), ['--line', '2']);
   assert.match(lastLine(built), /^INVALID: build broke/);
   assert.deepEqual(built.out.trimEnd().split('\n').slice(0, 2), ['- keep', '+ ']);
+});
+
+test('--test-name appends nameArg with {name} replaced', () => {
+  const argv = fake("fs.writeFileSync('argv.txt', process.argv.slice(2).join('|'));");
+  const dir = proj('one\nkeep\nthree\n', { t: { command: 'node check.mjs {filter}', nameArg: '-t {name}' } }, { 'check.mjs': argv });
+  mc(dir, ['--line', '2', '--test-name', 'my_test']);
+  assert.equal(fs.readFileSync(path.join(dir, 'argv.txt'), 'utf8'), 'x|-t|my_test');
+});
+
+test('--test-name without nameArg, nameArg without {name}, or a name with a double quote exits 2', () => {
+  const nameArg = (v) => proj('one\nkeep\n', { t: { command: 'node check.mjs', ...(v ? { nameArg: v } : {}) } });
+  const cases = [
+    [nameArg(), ['--test-name', 'n'], /^review: --test-name needs tests\.t\.nameArg\n$/],
+    [nameArg('-t'), ['--test-name', 'n'], /^review: \.claude\/ai-dev-team\.json: tests\.t\.nameArg must contain \{name\}\n$/],
+    [nameArg('-t {name}'), ['--test-name', 'a"b'], /^review: --test-name may not contain " ` \$ %: pass a part of the name\n$/],
+  ];
+  for (const [dir, args, re] of cases) {
+    const r = mc(dir, ['--line', '2', ...args]);
+    assert.equal(r.code, 2, `${args} ${r.out}${r.err}`);
+    assert.match(r.err, re);
+  }
+});
+
+test('a failing baseline names the failing tests when format is dotnet', () => {
+  const dir = proj('one\nkeep\n', { t: { command: 'node check.mjs', format: 'dotnet' } }, { 'check.mjs': fake("console.log('  Failed Ns.Cls.Method [3 ms]'); process.exit(1);") });
+  const r = mc(dir, ['--line', '2']);
+  assert.equal(r.code, 1);
+  assert.equal(lastLine(r), 'INVALID: the test fails before the line is broken (failing: Ns.Cls.Method)');
+});
+
+test('tests.<kind>.env reaches the test command', () => {
+  const envCheck = fake("process.exit(process.env.MC_TEST_ENV === 'on' && fs.readFileSync('src.txt', 'utf8').includes('keep') ? 0 : 1);");
+  const dir = proj('one\nkeep\n', { t: { command: 'node check.mjs', env: { MC_TEST_ENV: 'on' } } }, { 'check.mjs': envCheck });
+  assert.equal(mc(dir, ['--line', '2']).code, 0);
+  const bad = proj('one\nkeep\n', { t: { command: 'node check.mjs', env: { MC_TEST_ENV: 5 } } }, { 'check.mjs': envCheck });
+  const r = mc(bad, ['--line', '2']);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /tests\.t\.env must be an object of strings/);
+});
+
+test("the local settings file's tests.<kind>.env overrides the committed one", () => {
+  const envCheck = fake("process.exit(process.env.MC_TEST_ENV === 'local' && fs.readFileSync('src.txt', 'utf8').includes('keep') ? 0 : 1);");
+  const local = JSON.stringify({ tests: { t: { env: { MC_TEST_ENV: 'local' } } } });
+  const dir = proj('one\nkeep\n', { t: { command: 'node check.mjs', env: { MC_TEST_ENV: 'committed' } } }, { 'check.mjs': envCheck, '.claude/ai-dev-team.local.json': local });
+  const r = mc(dir, ['--line', '2']);
+  assert.equal(r.code, 0, r.out + r.err);
 });
