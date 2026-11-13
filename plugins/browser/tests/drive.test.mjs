@@ -7,7 +7,8 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { matchFake } from '../scripts/lib/fakes.mjs';
-import { LOCATE } from '../scripts/lib/actions.mjs';
+import { LOCATE, OVERLAY } from '../scripts/lib/actions.mjs';
+import { parseSteps } from '../scripts/lib/steps.mjs';
 
 const script = fileURLToPath(new URL('../scripts/drive.mjs', import.meta.url));
 const fake = fileURLToPath(new URL('./fake-cdp.mjs', import.meta.url));
@@ -23,10 +24,10 @@ const calls = (log) =>
     .split(/\r?\n/)
     .map((l) => JSON.parse(l));
 
-function setup(steps, { baseUrl = 'http://localhost:9', cdp = {}, doc = {} } = {}) {
+function setup(steps, { baseUrl = 'http://localhost:9', cdp = {}, doc = {}, browser: extra = {} } = {}) {
   const dir = path.join(base, `p ${n++}`);
   fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
-  const browser = { exe: [process.execPath, fake], ...(baseUrl && { baseUrl }) };
+  const browser = { exe: [process.execPath, fake], ...(baseUrl && { baseUrl }), ...extra };
   fs.writeFileSync(path.join(dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ browser }));
   const file = path.join(dir, 'steps.json');
   fs.writeFileSync(file, JSON.stringify({ ...doc, steps }));
@@ -526,4 +527,74 @@ test('a missing browser.baseUrl with the old e2e key present tells to rename the
   const r = run(t);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /browser\.baseUrl.*; the settings moved from the "e2e" key to "browser": rename the key/);
+});
+
+test('an error overlay after go is loaded once more, then fails the step with an overlay line', () => {
+  const t = setup([{ go: '/' }], { cdp: { replies: { 'Runtime.evaluate': [val('vite TS2339: Property x does not exist')] } } });
+  const r = run(t);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(lines(r).includes('overlay 1 vite TS2339: Property x does not exist'), r.stdout);
+  assert.ok(lines(r).some((l) => l.startsWith('fail 1 go /: dev-server error overlay: vite TS2339')), r.stdout);
+  assert.equal(calls(t.log).filter((c) => c.method === 'Page.navigate').length, 2);
+});
+
+test('an overlay gone after the second load lets the run continue', () => {
+  const t = setup([{ go: '/' }], { cdp: { replies: { 'Runtime.evaluate': [val('vite x'), val(null)] } } });
+  const r = run(t);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(lines(r).includes('overlay 1 vite x'), r.stdout);
+  assert.equal(calls(t.log).filter((c) => c.method === 'Page.navigate').length, 2);
+});
+
+test('a shot with an overlay on the page fails instead of saving <name>.png', () => {
+  const t = setup([{ shot: 'home' }], { cdp: { replies: { 'Runtime.evaluate': [val('webpack Module not found')] } } });
+  const r = run(t);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(lines(r).some((l) => l.startsWith('fail 1 shot home: dev-server error overlay: webpack Module not found')), r.stdout);
+  assert.equal(fs.existsSync(path.join(t.out, 'home.png')), false);
+  assert.ok(fs.existsSync(path.join(t.out, 'fail-1.png')));
+});
+
+test('the overlay probe reads the first non-empty line of a vite or webpack overlay and is null on a clean page', () => {
+  const doc = (map) => ({ document: { querySelector: (s) => map[s] ?? null } });
+  const vite = { shadowRoot: { querySelector: (s) => (s === '.message-body' ? { textContent: '\n  TS2339: bad\nmore' } : null) } };
+  assert.equal(vm.runInNewContext(OVERLAY, doc({ 'vite-error-overlay': vite })), 'vite TS2339: bad');
+  const webpack = { contentDocument: { body: { innerText: '\nCompile error\nx' } } };
+  assert.equal(vm.runInNewContext(OVERLAY, doc({ '#webpack-dev-server-client-overlay': webpack })), 'webpack Compile error');
+  assert.equal(vm.runInNewContext(OVERLAY, doc({})), null);
+});
+
+test('the first go without timeoutMs waits at least 60000 ms; later steps keep the default; a file timeoutMs wins', () => {
+  const steps = [{ go: 'http://x/a' }, { go: 'http://x/b' }, { go: 'http://x/c', timeoutMs: 5 }];
+  const ms = (text, def) => parseSteps(text, base, null, '', def).steps.map((s) => s.timeoutMs);
+  assert.deepEqual(ms(JSON.stringify({ steps }), 10000), [60000, 10000, 5]);
+  assert.deepEqual(ms(JSON.stringify({ steps: [steps[2], steps[0]] }), 10000), [5, 60000]);
+  assert.deepEqual(ms(JSON.stringify({ steps }), 90000), [90000, 90000, 5]);
+  assert.deepEqual(ms(JSON.stringify({ timeoutMs: 700, steps }), 10000), [700, 700, 5]);
+});
+
+test('browser.stepTimeoutMs is the default step timeout', () => {
+  const t = setup([{ wait: '#nope' }], { browser: { stepTimeoutMs: 300 } });
+  const r = run(t);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(lines(r).includes('fail 1 wait #nope: not found after 300 ms'), r.stdout);
+});
+
+test('a stepTimeoutMs that is not a positive number exits 2', () => {
+  const t = setup([{ go: '/' }], { browser: { stepTimeoutMs: 'soon' } });
+  const r = run(t);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /browser.stepTimeoutMs must be a positive number/);
+  assert.equal(fs.existsSync(t.log), false);
+});
+
+test('a baseUrl in .claude/ai-dev-team.local.json replaces the committed one', () => {
+  const t = setup([{ go: '/x' }]);
+  fs.writeFileSync(path.join(t.dir, '.claude', 'ai-dev-team.local.json'), JSON.stringify({ browser: { baseUrl: 'http://localhost:7' } }));
+  const r = run(t);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(
+    calls(t.log).filter((c) => c.method === 'Page.navigate').map((c) => c.params.url),
+    ['http://localhost:7/x'],
+  );
 });

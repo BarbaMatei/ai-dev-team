@@ -275,3 +275,10 @@ test('an e2e key alone no longer configures the app: up exits 2 asking for brows
   assert.equal(r.status, 2);
   assert.equal(r.stderr.trim(), '.claude/ai-dev-team.json: browser.baseUrl is not set; the settings moved from the "e2e" key to "browser": rename the key');
 });
+
+test('status uses the boot list from the local settings file', async () => {
+  const [pa, pb] = [await freePort(), await freePort()];
+  const dir = project({ boot: [{ name: 'a', ready: url(pa) }] });
+  fs.writeFileSync(path.join(dir, '.claude', 'ai-dev-team.local.json'), JSON.stringify({ browser: { boot: [{ name: 'b', ready: url(pb) }] } }));
+  assert.deepEqual(lines(run(dir, ['status'])), [`b down ${url(pb)}`]);
+});

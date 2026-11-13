@@ -2,7 +2,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, projectRoot } from './lib/project.mjs';
+import { loadLocalConfig, projectRoot } from './lib/project.mjs';
+import { failingTests, ranNoTest } from './lib/runner.mjs';
 
 export function mutateLine(text, lineNo, replacement) {
   const parts = text === '' ? [] : text.split(/(?<=\n)/);
@@ -35,14 +36,17 @@ function readTest(cfg, kind) {
       bad(`tests.${kind}.buildError is not a valid regex: ${e.message}`);
     }
   }
-  return { command: t.command, cwd: t.cwd ?? '', buildError };
+  for (const k of ['format', 'nameArg']) if (t[k] !== undefined && typeof t[k] !== 'string') bad(`tests.${kind}.${k} must be a string`);
+  if (t.nameArg !== undefined && !t.nameArg.includes('{name}')) bad(`tests.${kind}.nameArg must contain {name}`);
+  if (t.env !== undefined && (t.env === null || typeof t.env !== 'object' || Array.isArray(t.env) || !Object.values(t.env).every((v) => typeof v === 'string'))) bad(`tests.${kind}.env must be an object of strings`);
+  return { command: t.command, cwd: t.cwd ?? '', buildError, format: t.format, nameArg: t.nameArg, env: t.env };
 }
 
 let current = null;
 
-function runCommand(command, cwd) {
+function runCommand(command, cwd, env) {
   return new Promise((resolve) => {
-    const child = spawn(command, { shell: true, cwd });
+    const child = spawn(command, { shell: true, cwd, env: { ...process.env, ...env } });
     current = child;
     let out = '';
     child.stdout.on('data', (d) => (out += d));
@@ -58,18 +62,27 @@ async function main() {
     const i = args.indexOf(n);
     return i >= 0 && i + 1 < args.length ? args[i + 1] : undefined;
   };
-  const [file, line, kind, test, replace] = ['--file', '--line', '--kind', '--test', '--replace'].map(val);
+  const [file, line, kind, test, replaceArg, replaceFile, testName] = ['--file', '--line', '--kind', '--test', '--replace', '--replace-file', '--test-name'].map(val);
   if (file === undefined || line === undefined || kind === undefined || test === undefined) {
-    fail('usage: mutate-check.mjs --file <path> --line <n> [--replace <text>] --kind <tests key> --test <filter>');
+    fail('usage: mutate-check.mjs --file <path> --line <n> [--replace <text> | --replace-file <path>] --kind <tests key> --test <filter> [--test-name <name>]  (<filter> replaces {filter} in tests.<kind>.command; <name> replaces {name} in tests.<kind>.nameArg)');
+  }
+  if (replaceArg !== undefined && replaceFile !== undefined) fail('--replace and --replace-file cannot be combined');
+  let replace = replaceArg;
+  if (replaceFile !== undefined) {
+    if (!fs.existsSync(replaceFile) || !fs.statSync(replaceFile).isFile()) fail(`replace file not found: ${replaceFile}`);
+    replace = fs.readFileSync(replaceFile, 'utf8').replace(/^\uFEFF/, '').replace(/\r?\n$/, '');
+    if (/[\r\n]/.test(replace)) fail('--replace-file must hold exactly one line');
   }
   if (!/^\d+$/.test(line) || Number(line) < 1) fail('--line must be a positive integer');
   const root = projectRoot(process.cwd());
   let t;
   try {
-    t = readTest(loadConfig(root), kind);
+    t = readTest(loadLocalConfig(root), kind);
   } catch (e) {
     fail(e.message);
   }
+  if (testName !== undefined && t.nameArg === undefined) fail('--test-name needs tests.' + kind + '.nameArg');
+  if (testName !== undefined && /["`$%]/.test(testName)) fail('--test-name may not contain " ` $ %: pass a part of the name');
   const target = path.resolve(root, file);
   if (!fs.existsSync(target) || !fs.statSync(target).isFile()) fail(`file not found: ${file}`);
   const original = fs.readFileSync(target);
@@ -82,15 +95,19 @@ async function main() {
   }
   const oldLine = text.split(/(?<=\n)/)[Number(line) - 1].replace(/\r?\n$/, '');
   const newLine = replace ?? '';
-  const command = t.command.replaceAll('{filter}', () => test);
+  const command = t.command.replaceAll('{filter}', () => test) + (testName === undefined ? '' : ` ${t.nameArg.replaceAll('{name}', () => testName)}`);
   const cwd = path.join(root, t.cwd);
   const say = (verdict, withDiff = true, code = 1, note = []) => {
-    process.stdout.write(`${[verdict, ...(withDiff ? [`- ${oldLine}`, `+ ${newLine}`] : []), ...note].join('\n')}\n`);
+    process.stdout.write(`${[...(withDiff ? [`- ${oldLine}`, `+ ${newLine}`] : []), ...note, verdict].join('\n')}\n`);
     process.exitCode = code;
   };
 
-  const baseline = await runCommand(command, cwd);
-  if (baseline.code !== 0) return say('INVALID: the test fails before the line is broken', false);
+  const baseline = await runCommand(command, cwd, t.env);
+  if (ranNoTest(baseline.out)) return say(`INVALID: no test ran: --test is the value put in place of {filter} in: ${command}`, false);
+  if (baseline.code !== 0) {
+    const names = failingTests(baseline.out, t.format);
+    return say(`INVALID: the test fails before the line is broken${names.length ? ` (failing: ${names.join(', ')})` : ''}`, false);
+  }
 
   const restore = () => {
     for (let i = 0; ; i++) {
@@ -116,7 +133,7 @@ async function main() {
   let err;
   try {
     fs.writeFileSync(target, mutant);
-    broken = await runCommand(command, cwd);
+    broken = await runCommand(command, cwd, t.env);
   } finally {
     err = restore();
   }
@@ -127,7 +144,7 @@ async function main() {
   if (t.buildError && broken.out.split(/\r?\n/).some((l) => t.buildError.test(l))) {
     return say('INVALID: build broke, not the test: use --replace with code that compiles');
   }
-  const after = await runCommand(command, cwd);
+  const after = await runCommand(command, cwd, t.env);
   if (after.code !== 0) return say('INVALID: the test fails after restoring the file');
   say('GUARDED', true, 0, t.buildError ? [] : [`note: no buildError configured for ${kind} — a build break would look like GUARDED`]);
 }

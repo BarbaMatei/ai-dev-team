@@ -5,6 +5,7 @@ import { parseFakes } from './fakes.mjs';
 export const KEYS = ['Enter', 'Tab', 'Escape', 'Space', 'Backspace', 'ArrowUp', 'ArrowDown'];
 const ACTIONS = ['go', 'wait', 'until', 'click', 'type', 'press', 'upload', 'eval', 'shot', 'sleep'];
 const EXTRA = new Set(['text', 'files', 'timeoutMs']);
+const FIRST_GO_MS = 60000;
 const TOP = ['viewport', 'timeoutMs', 'fake', 'steps'];
 const bad = (msg) => Object.assign(new Error(msg), { code: 2 });
 const isStr = (v) => typeof v === 'string' && v !== '';
@@ -47,7 +48,7 @@ function parseStep(raw, n, stepsDir, baseUrl, defaultTimeout, hint) {
   return step;
 }
 
-export function parseSteps(text, stepsDir, baseUrl, hint = '') {
+export function parseSteps(text, stepsDir, baseUrl, hint = '', defaultTimeout = 10000) {
   let doc;
   try {
     doc = JSON.parse(text);
@@ -59,13 +60,11 @@ export function parseSteps(text, stepsDir, baseUrl, hint = '') {
   if (unknown) throw bad(`steps file: unknown key "${unknown}"`);
   const size = /^(\d+)x(\d+)$/.exec(doc.viewport ?? '1280x800');
   if (!size) throw bad('viewport must look like 1280x800');
-  const timeoutMs = doc.timeoutMs ?? 10000;
+  const timeoutMs = doc.timeoutMs ?? defaultTimeout;
   if (!(typeof timeoutMs === 'number' && timeoutMs > 0)) throw bad('timeoutMs must be a positive number');
   if (!Array.isArray(doc.steps) || doc.steps.length === 0) throw bad('steps must be a non-empty list');
-  return {
-    viewport: [Number(size[1]), Number(size[2])],
-    timeoutMs,
-    fake: parseFakes(doc.fake ?? [], stepsDir),
-    steps: doc.steps.map((s, i) => parseStep(s, i + 1, stepsDir, baseUrl, timeoutMs, hint)),
-  };
+  const steps = doc.steps.map((s, i) => parseStep(s, i + 1, stepsDir, baseUrl, timeoutMs, hint));
+  const first = steps.findIndex((s) => s.action === 'go' && doc.steps[s.n - 1].timeoutMs === undefined);
+  if (first >= 0 && doc.timeoutMs === undefined) steps[first].timeoutMs = Math.max(defaultTimeout, FIRST_GO_MS);
+  return { viewport: [Number(size[1]), Number(size[2])], timeoutMs, fake: parseFakes(doc.fake ?? [], stepsDir), steps };
 }

@@ -21,10 +21,15 @@ Self-test before presenting: can you say who sends it, how it gets there, where 
 
 Three outcomes, all normal. **Stands:** present the fix. **Narrowed:** real but smaller or elsewhere; present it at its true scope and say what moved. **Not a defect:** present the closure with the evidence and wait for the word, as for a fix. When a fix "does not seem right" and you are adding a second guard beside an existing one, look for the rule the existing check approximates: replacing a proxy with the exact comparison often deletes code.
 
+A race between two users of the same role (two staff members, two administrators): ask once in the batch how many such users there are; with one, it becomes a closure candidate.
+
 ## Reproducing
 
 - **Browser:** write a steps file and run it with `browser:drive` (its skill lists the actions). Take selectors from the page's code, never from guesses; a step that fails on a selector is the steps file's fault: fix it and run again. Wait with `wait` or `until`, never `sleep`, except for animations. Read the `console`, `exception`, `failed` and `api` lines: they often show the real symptom (a request never sent, a server error, a script error) where the issue described a screen. The log shows a reply's status, not its body: to quote the body, send that request yourself (next line).
 - **API:** send the request (curl, or `node -e "fetch(…)"`) with a test account's credentials; show the status and the wrong part of the reply.
+- **Seen as an absence** (a retry that never runs, a missing log line or tag): the reply looks right, so the evidence is the server log. Start a copy (`apiCopy`) with the settings the path needs (check which settings source wins: a local settings file may beat environment variables), reproduce, quote the log lines before and after the fix, and give the owner the log path.
+- **An official source that refuses tools** (a download blocked for automated clients): ask the owner to save it and give you its local path; never retry with a changed user agent or other tricks.
+- **Build or deploy:** with an engine on the `containers` line, build the production image and run it locally before and after the fix.
 - **Test-only, build:** run the proving test or the build command, scoped; quote the failing lines.
 - **Out of the runner's reach** (a payment provider's page framed from another site, drag and drop): the Playwright MCP tools if installed, else the steps marked "not verified" with the reason.
 - **No app address** (`app` missing): ask the owner once; until then browser bugs are verified by tests only, and you say so.
@@ -35,7 +40,8 @@ Three outcomes, all normal. **Stands:** present the fix. **Narrowed:** real but 
 - **Accounts:** the `accounts` line names the test accounts. Never use or change a real customer's account.
 - **Links and tokens** (email confirmation, password reset): seed a known token on a test account, stored the way the app stores it (often a hash), tell the owner, and verify on a second test account so the owner's own link stays unused.
 - **A log you cannot see:** when the owner's console holds the server log, start your own copy with the `apiCopy` command on a spare port, log to a file, reproduce through it, then stop it. Ask the owner for the line only when that is impossible.
-- **Email, payment sandboxes or another outside service missing:** say so before presenting the bug and rely on the tests for that path. Never build a stand-in.
+- **Email, payment sandboxes or another outside service missing:** say so before presenting the bug and rely on the tests for that path. Never build a stand-in. fix-setup's `services` line says which are ready.
+- **An app that locks its build:** a compiled backend started by the app (`browser:app up`) can lock its build output, so the next test build fails on a locked file. Stop that part (`browser:app down`, or ask the owner) before running its tests after a change, or run your own copy from a separate build output folder; start it again for the re-check.
 - **Scale or rare data** ("what does this look like with 1,000 items?"): fake the API replies in `browser:drive` (`fake` in the steps file); give numbers (lines, screens, requests) and a screenshot; never change real data. If it raises a product question, recommend a proposal issue and keep the fix scoped.
 
 ## Reading the owner
@@ -49,9 +55,10 @@ Three outcomes, all normal. **Stands:** present the fix. **Narrowed:** real but 
 | "can I see it myself?" | steps and a test account, or "cannot be reproduced" plainly | a paraphrase of the issue |
 | "no, I didn't see it" | re-derive: data, environment, or a wrong chain | permission to fix anyway |
 | "it still doesn't work" (re-check) | re-run the steps with `browser:drive`, re-derive, then present the new change and ask "Approve?" again; it lands as a follow-up commit | permission to edit again without showing it |
+| "do it without asking" | approval of the change or removal they named | approval of later decisions |
 | silence | nothing happens | permission |
 
-**Pushback:** re-derive from the source; do not defend. When they are right, one line, "You're right: <evidence>", then the corrected message. Two rounds on one bug without approval means the framing is wrong: dispatch a fresh general-purpose subagent with the issue, the code and the question "can this be fixed, and how, as a complete file list", without mentioning your proposal; verify its claims, then show both views.
+**Pushback:** re-derive from the source; do not defend. When they are right, one line, "You're right: <evidence>", then the corrected message. Two rounds on one bug without approval means the framing is wrong: dispatch a fresh general-purpose subagent with the issue, the code and the question "can this be fixed, and how, as a complete file list", without mentioning your proposal; verify its claims, then show both views. Two context questions in a row on the same choice ("how do others do this?", "what is the standard?") count as two rounds: offer the fresh-subagent view (issue, code and question only, no proposal) before answering a third time.
 
 **"Does this need a test?":** two facts, the rule that requires it and the gap that let the bug through; offer a lighter test that covers the whole class of bug; do not argue further.
 
@@ -59,6 +66,7 @@ Three outcomes, all normal. **Stands:** present the fix. **Narrowed:** real but 
 
 ## Scope
 
-- **Defects found along the way:** one line naming it and a proposal to file it as an issue (bug label, area, how serious, how to see it); file it only on the yes; never fix it in this batch.
+- **Defects found along the way:** one line naming it and a proposal to file it as an issue (bug label, area, how serious, how to see it); file it only on the yes. Fix it in this batch only when the owner says so: file it first (so the PR closes it), re-estimate, then present it like a batch bug, in phases with one approval each.
+- **Structure ideas** ("should this be one central handler?"): search the open issues about structure or refactoring of the touched files first; one matches → answer in one message (what is already central, what is scattered and why) and comment there; never widen the fix.
 - **Feature requests** in the middle of a bug: search the issues (all states, including the proposal and UI labels) and the specs' out-of-scope lines; say in one line whether it is already logged; recommend a proposal issue; continue the batch.
 - **"Fix both, I know it's out of scope":** a phased plan, one approval per phase.

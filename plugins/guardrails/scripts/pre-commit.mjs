@@ -2,7 +2,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot, loadConfig, matchesAny } from './lib/project.mjs';
-import { findSecrets, isCommentLine, readSettings } from './checks.mjs';
+import { findSecrets, readSettings } from './checks.mjs';
+import { newComments } from './lib/comments.mjs';
 
 const root = projectRoot(process.cwd());
 let config;
@@ -27,16 +28,21 @@ function git(args) {
   return r.stdout;
 }
 
-function addedLines(paths) {
+function hunks(paths) {
   const diff = git(['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '-M', '--', ...paths]);
   const out = [];
+  let cur = null;
   let next = 0;
   for (const raw of diff.split('\n')) {
     const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
     if (h) {
       next = Number(h[1]);
+      cur = { removed: [], added: [] };
+      out.push(cur);
     } else if (next > 0 && raw.startsWith('+')) {
-      out.push({ no: next++, text: raw.slice(1).replace(/\r$/, '') });
+      cur.added.push({ no: next++, text: raw.slice(1).replace(/\r$/, '') });
+    } else if (next > 0 && raw.startsWith('-')) {
+      cur.removed.push(raw.slice(1).replace(/\r$/, ''));
     }
   }
   return out;
@@ -54,17 +60,20 @@ for (let i = 0; i < fields.length; i++) {
     i++;
   }
 }
-const { allowPaths, patterns: extra, extensions: exts, hint } = settings;
+const { allowPaths, patterns: extra, extensions: exts, ignore, hint } = settings;
 
 const secretHits = [];
 const commentHits = [];
 for (const [old, file] of entries) {
-  const added = addedLines(old ? [old, file] : [file]);
+  const parts = hunks(old ? [old, file] : [file]);
+  const added = parts.flatMap((h) => h.added);
   if (!matchesAny(file, allowPaths)) {
     for (const i of findSecrets(added.map((l) => l.text), extra)) secretHits.push(`${file}:${added[i - 1].no}`);
   }
-  if (!merging && exts.includes(path.extname(file).toLowerCase())) {
-    for (const l of added) if (isCommentLine(l.text)) commentHits.push(`${file}:${l.no}: ${l.text.trim()}`);
+  if (!merging && exts.includes(path.extname(file).toLowerCase()) && !matchesAny(file, ignore)) {
+    for (const h of parts) {
+      for (const i of newComments(h.removed, h.added.map((l) => l.text))) commentHits.push(`${file}:${h.added[i].no}: ${h.added[i].text.trim()}`);
+    }
   }
 }
 
@@ -78,9 +87,8 @@ if (commentHits.length && !process.env.COMMENTS_OK) {
   console.error('COMMENT GATE: added comment lines in this commit:');
   for (const h of commentHits) console.error(`  ${h}`);
   console.error('');
-  console.error('Comments are a last resort: keep only a short line that explains a non-obvious why,');
-  console.error('or a short doc comment where the project allows one. Delete or shrink the lines');
-  console.error('above, restage and commit again. Only if every listed line is allowed, re-run the');
-  console.error('same commit with COMMENTS_OK=1 (never --no-verify).');
+  console.error('Comments are a last resort: a new comment line always stops here; an edited one passes only when it does not grow.');
+  console.error('Delete or shorten the lines above, restage and commit again. Only if every listed line is allowed,');
+  console.error('re-run the same commit with COMMENTS_OK=1 (never --no-verify).');
   process.exit(1);
 }

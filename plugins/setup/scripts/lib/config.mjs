@@ -19,7 +19,7 @@ export function renderConfig(answers, stacks, version) {
     const { command, ...rest } = stacks[s.id].test;
     tests[s.role] = { command, cwd: s.dir, ...rest };
   }
-  const cfg = { tests, testLock: true, testGuard: true, rulesDir: '.claude/rules', triggers: [], bugs: { label: 'bug' }, metrics: { since: 1 } };
+  const cfg = { tests, testLock: true, testGuard: true, rulesDir: '.claude/rules', triggers: [], bugs: { label: 'bug' }, metrics: { since: 1 }, comments: { ignore: ['.specsmd/**'] } };
   if (answers.stacks.some((s) => s.role === 'web')) cfg.browser = browser(answers, stacks);
   if (answers.release === 'kit') cfg.release = { packages: answers.stacks.map((s) => s.dir), tag: '{name}-v{version}' };
   const { name, language, owner, ownerType, visibility, release, releaseRef } = answers;

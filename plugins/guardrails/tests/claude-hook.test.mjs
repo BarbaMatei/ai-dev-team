@@ -137,3 +137,46 @@ test('14 tests: a broken config still blocks', () => {
   const bad = repo('{ nope');
   assert.equal(call(bad, 'tests', 'Bash', { command: 'dotnet test x' }).code, 2);
 });
+
+test('comments: an Edit that shortens an existing comment is not reported', () => {
+  const d = repo();
+  const r = call(d, 'comments', 'Edit', { file_path: path.join(d, 'a.ts'), old_string: '// keep the order #12\nlet a;', new_string: '// keep the order\nlet a;' });
+  assert.equal(r.code, 0);
+});
+
+test('comments: an Edit that lengthens an existing comment is reported', () => {
+  const d = repo();
+  const r = call(d, 'comments', 'Edit', { file_path: path.join(d, 'a.ts'), old_string: '// keep\nlet a;', new_string: '// keep the order\nlet a;' });
+  assert.equal(r.code, 2);
+});
+
+test('comments: an edit to a file outside the project is not checked', () => {
+  const d = repo();
+  const outside = path.join(base, `outside${n++}`);
+  fs.mkdirSync(outside);
+  const r = call(d, 'comments', 'Write', { file_path: path.join(outside, 'scratch.ts'), content: '// note\n' });
+  assert.equal(r.code, 0);
+});
+
+test('comments: a project file under a folder named ..cache is still checked', () => {
+  const d = repo();
+  assert.equal(call(d, 'comments', 'Write', { file_path: path.join(d, '..cache', 'a.ts'), content: '// note\n' }).code, 2);
+});
+
+test('secrets: an edit to a file outside the project is still checked', () => {
+  const d = repo();
+  const outside = path.join(base, `outside${n++}`);
+  fs.mkdirSync(outside);
+  assert.equal(call(d, 'secrets', 'Write', { file_path: path.join(outside, 'scratch.ts'), content: sk }).code, 2);
+});
+
+test('comments: a path matching comments.ignore is not checked', () => {
+  const d = repo({ comments: { ignore: ['.vendored/**'] } });
+  assert.equal(call(d, 'comments', 'Write', { file_path: path.join(d, '.vendored', 'a.ts'), content: '// note\n' }).code, 0);
+  assert.equal(call(d, 'comments', 'Write', { file_path: path.join(d, 'a.ts'), content: '// note\n' }).code, 2);
+});
+
+test('comments.ignore does not skip the secret check', () => {
+  const d = repo({ comments: { ignore: ['.vendored/**'] } });
+  assert.equal(call(d, 'secrets', 'Write', { file_path: path.join(d, '.vendored', 'a.ts'), content: sk }).code, 2);
+});

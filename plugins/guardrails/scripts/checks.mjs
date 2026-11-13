@@ -22,10 +22,7 @@ export function findSecrets(lines, extra = []) {
   return hits;
 }
 
-export function isCommentLine(line) {
-  const t = line.trim();
-  return t.startsWith('//') || t.startsWith('/*') || /\s\/\/(\s|$)/.test(line);
-}
+export { isCommentLine } from './lib/comments.mjs';
 
 function strings(value, key) {
   if (value === undefined) return [];
@@ -48,7 +45,7 @@ export function readSettings(cfg) {
     }
   }
   const extensions = comments.extensions === undefined ? DEFAULT_COMMENT_EXTENSIONS : strings(comments.extensions, 'comments.extensions');
-  return { patterns, allowPaths: strings(secrets.allowPaths, 'secrets.allowPaths'), hint: secrets.hint, extensions: extensions.map((e) => e.toLowerCase()) };
+  return { patterns, allowPaths: strings(secrets.allowPaths, 'secrets.allowPaths'), hint: secrets.hint, extensions: extensions.map((e) => e.toLowerCase()), ignore: strings(comments.ignore, 'comments.ignore') };
 }
 
 function heredocEnd(command, from, delim) {

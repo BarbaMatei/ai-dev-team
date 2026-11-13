@@ -1,13 +1,14 @@
-import { loadConfig } from './project.mjs';
+import { loadConfig, loadLocalConfig } from './project.mjs';
 
 const bad = (msg) => new Error(`.claude/ai-dev-team.json: browser.${msg}`);
 const isStr = (v) => typeof v === 'string' && v !== '';
 
 export function loadBrowser(root) {
-  const e = loadConfig(root).browser ?? {};
+  const e = loadLocalConfig(root).browser ?? {};
   if (e === null || typeof e !== 'object' || Array.isArray(e)) throw bad('must be an object');
   if (e.baseUrl !== undefined && !isStr(e.baseUrl)) throw bad('baseUrl must be a string');
   if (e.timeoutSec !== undefined && !(typeof e.timeoutSec === 'number' && e.timeoutSec > 0)) throw bad('timeoutSec must be a positive number');
+  if (e.stepTimeoutMs !== undefined && !(typeof e.stepTimeoutMs === 'number' && e.stepTimeoutMs > 0)) throw bad('stepTimeoutMs must be a positive number');
   const b = e.exe;
   if (b !== undefined && !isStr(b) && !(Array.isArray(b) && b.length > 0 && b.every(isStr))) throw bad('exe must be a string or an array of strings');
   const boot = e.boot ?? [];

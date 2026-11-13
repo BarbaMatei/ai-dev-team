@@ -14,9 +14,9 @@ Proven code review for Claude Code: a review finding counts only when a failing 
 | `areas.mjs` | Touched areas and trigger, files of an area, areas of a file, the same bug shape nearby | `rulesDir`, `areas`, `triggers` |
 | `decisions.mjs` | Matches a finding to past owner decisions | `decisions` |
 | `mutate-check.mjs` | Breaks one line, requires the test to fail, restores the file | `tests` |
-| `fix-setup.mjs` | Prints the settings a fix session needs, with what to do instead for each missing one | `tests`, `browser`, `fix` |
+| `fix-setup.mjs` | Prints the settings a fix session needs, the container engine and each outside service's state, with what to do instead for each missing one | `tests`, `browser`, `fix` |
 
-A bolt is one unit of work on its own branch, reviewed as one PR. An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry; in `areas`, a glob starting with `!` excludes the files it matches, and an exclusion in a config area merged into a rule area applies to that rule area too. `fix` (all optional strings): `accounts` (where the test accounts are), `dataQuery` (a read-only query command with `{sql}`), `logs` (where the server log goes), `apiCopy` (starts an own server copy on `{port}`), `mail` (the email catcher's address), `callers` (a command with `{symbol}`).
+A bolt is one unit of work on its own branch, reviewed as one PR. An area is a rule file in `rulesDir` (default `.claude/rules`) with its `paths:` globs, plus each `areas` entry; in `areas`, a glob starting with `!` excludes the files it matches, and an exclusion in a config area merged into a rule area applies to that rule area too. `fix` (all optional; strings except `services`): `accounts` (where the test accounts are), `dataQuery` (a read-only query command with `{sql}`), `logs` (where the server log goes), `apiCopy` (starts an own server copy on `{port}`), `mail` (the email catcher's address), `callers` (a command with `{symbol}`). `services` is an object mapping a name to a check command (`"payment keys": "node scripts/check-keys.mjs"`): exit 0 = ready, and the command prints a status, never a key.
 
 ```json
 {
@@ -37,20 +37,23 @@ A bolt is one unit of work on its own branch, reviewed as one PR. An area is a r
 4. Round 2, only if round 1 changed code: `code-review medium` on the fix lines → prove → fix. No round 3: the rest goes under "Needs owner".
 5. `mutate-check` each regression test, attach past decisions, write the PR body; the owner reviews and merges.
 
-The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchpad (else the OS temp folder), never inside `.git` or the working tree: Claude Code asks permission for files in `.git`, which stalls a headless run. `--no-pr` stops there. `--ask` (what `fix-findings` uses): each proven bug's fix is shown to the owner and kept only on a yes; simplify's tidy-ups still commit on their own.
+The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchpad (else the OS temp folder), never inside `.git` or the working tree: Claude Code asks permission for files in `.git`, which stalls a headless run. `--no-pr` stops there; `--no-review` skips the review rounds. `--ask` (what `fix-findings` uses): each proven bug's fix is shown to the owner and kept only on a yes; simplify's tidy-ups still commit on their own.
 
 ## Scripts
 
 ```
 node scripts/areas.mjs touched [--base <ref>] | files <area> | of <file>... | rules <file>... | nearby --pattern <regex> [--max <n>] [--base <ref>]
 node scripts/decisions.mjs --path <file> --text "<finding>"
-node scripts/mutate-check.mjs --file <path> --line <n> [--replace <text>] --kind <tests key> --test <filter>
+node scripts/mutate-check.mjs --file <path> --line <n> [--replace <text> | --replace-file <path>] --kind <tests key> --test <filter> [--test-name <name>]
 node scripts/fix-setup.mjs
 ```
 
-`of` prints `<file><TAB><area>,<area>` (`-` when none); `rules` prints `<rule file><TAB><file>` for each rule file whose area holds the file; `nearby --max <n>` prints nothing and exits 3 above `<n>` sites, so a too-broad pattern is narrowed. A claim that is what the spec asks for becomes `by-design` in prove-findings and lands under Risks. For compiled languages set `tests.<kind>.buildError` (a regex of your compiler's error lines): without it a mutant that fails to compile reads as `GUARDED`, and mutate-check adds a `note:` line saying so.
+`of` prints `<file><TAB><area>,<area>` (`-` when none); `rules` prints `<rule file><TAB><file>` for each rule file whose area holds the file; `nearby --max <n>` prints nothing and exits 3 above `<n>` sites, so a too-broad pattern is narrowed. A claim that is what the spec asks for becomes `by-design` in prove-findings and lands under Risks.
 
-review-bolt and sweep-area file proven bugs (with repro and the proving test) as GitHub issues; on a public repo those issues are public, so use a private repo, or a label your private tracker picks up, if that matters. mutate-check prints `GUARDED` (exit 0), or `NOT GUARDED` / `INVALID: <reason>` (exit 1), and always restores the file. Bad arguments or invalid config: one line on stderr, exit 2.
+For compiled languages set `tests.<kind>.buildError` (a regex of your compiler's error lines): without it a mutant that fails to compile reads as `GUARDED`, and mutate-check adds a `note:` line saying so.
+
+review-bolt and sweep-area file proven bugs (with repro and the proving test) as GitHub issues; on a public repo those issues are public, so use a private repo, or a label your private tracker picks up, if that matters. mutate-check prints `GUARDED` (exit 0), or `NOT GUARDED` / `INVALID: <reason>` (exit 1), as its last line, and always restores the file. Bad arguments or invalid config: one line on stderr, exit 2.
+Optional `tests.<kind>` keys: `nameArg` (appended for `--test-name`, holds `{name}`), `env` (strings added to the test's environment), `format` (`dotnet` or `vitest`: a failing baseline names its failing tests). `.claude/ai-dev-team.local.json` overrides any of them on this machine (objects merge, other values replace; add it to `.gitignore`).
 
 ## Does `/code-review` see `.claude/rules`?
 
