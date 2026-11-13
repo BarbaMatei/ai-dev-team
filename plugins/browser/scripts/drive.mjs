@@ -58,7 +58,7 @@ async function main() {
       throw fail(`steps file not found: ${stepsFile}`, 2);
     }
     const cfg = loadBrowser(projectRoot(process.cwd()));
-    const plan = parseSteps(text, path.dirname(stepsFile), cfg.baseUrl, cfg.moved);
+    const plan = parseSteps(text, path.dirname(stepsFile), cfg.baseUrl, cfg.moved, cfg.stepTimeoutMs);
     const browser = findBrowser(cfg);
     const outDir = path.resolve(outArg);
     fs.mkdirSync(outDir, { recursive: true });

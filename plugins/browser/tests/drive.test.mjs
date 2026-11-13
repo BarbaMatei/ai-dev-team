@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { matchFake } from '../scripts/lib/fakes.mjs';
 import { LOCATE, OVERLAY } from '../scripts/lib/actions.mjs';
+import { parseSteps } from '../scripts/lib/steps.mjs';
 
 const script = fileURLToPath(new URL('../scripts/drive.mjs', import.meta.url));
 const fake = fileURLToPath(new URL('./fake-cdp.mjs', import.meta.url));
@@ -23,10 +24,10 @@ const calls = (log) =>
     .split(/\r?\n/)
     .map((l) => JSON.parse(l));
 
-function setup(steps, { baseUrl = 'http://localhost:9', cdp = {}, doc = {} } = {}) {
+function setup(steps, { baseUrl = 'http://localhost:9', cdp = {}, doc = {}, browser: extra = {} } = {}) {
   const dir = path.join(base, `p ${n++}`);
   fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
-  const browser = { exe: [process.execPath, fake], ...(baseUrl && { baseUrl }) };
+  const browser = { exe: [process.execPath, fake], ...(baseUrl && { baseUrl }), ...extra };
   fs.writeFileSync(path.join(dir, '.claude', 'ai-dev-team.json'), JSON.stringify({ browser }));
   const file = path.join(dir, 'steps.json');
   fs.writeFileSync(file, JSON.stringify({ ...doc, steps }));
@@ -561,4 +562,28 @@ test('the overlay probe reads the first non-empty line of a vite or webpack over
   const webpack = { contentDocument: { body: { innerText: '\nCompile error\nx' } } };
   assert.equal(vm.runInNewContext(OVERLAY, doc({ '#webpack-dev-server-client-overlay': webpack })), 'webpack Compile error');
   assert.equal(vm.runInNewContext(OVERLAY, doc({})), null);
+});
+
+test('the first go without timeoutMs waits at least 60000 ms; later steps keep the default; a file timeoutMs wins', () => {
+  const steps = [{ go: 'http://x/a' }, { go: 'http://x/b' }, { go: 'http://x/c', timeoutMs: 5 }];
+  const ms = (text, def) => parseSteps(text, base, null, '', def).steps.map((s) => s.timeoutMs);
+  assert.deepEqual(ms(JSON.stringify({ steps }), 10000), [60000, 10000, 5]);
+  assert.deepEqual(ms(JSON.stringify({ steps: [steps[2], steps[0]] }), 10000), [5, 60000]);
+  assert.deepEqual(ms(JSON.stringify({ steps }), 90000), [90000, 90000, 5]);
+  assert.deepEqual(ms(JSON.stringify({ timeoutMs: 700, steps }), 10000), [700, 700, 5]);
+});
+
+test('browser.stepTimeoutMs is the default step timeout', () => {
+  const t = setup([{ wait: '#nope' }], { browser: { stepTimeoutMs: 300 } });
+  const r = run(t);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(lines(r).includes('fail 1 wait #nope: not found after 300 ms'), r.stdout);
+});
+
+test('a stepTimeoutMs that is not a positive number exits 2', () => {
+  const t = setup([{ go: '/' }], { browser: { stepTimeoutMs: 'soon' } });
+  const r = run(t);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /browser.stepTimeoutMs must be a positive number/);
+  assert.equal(fs.existsSync(t.log), false);
 });
