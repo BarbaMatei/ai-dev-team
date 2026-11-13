@@ -37,7 +37,7 @@ A bolt is one unit of work on its own branch, reviewed as one PR. An area is a r
 4. Round 2, only if round 1 changed code: `code-review medium` on the fix lines → prove → fix. No round 3: the rest goes under "Needs owner".
 5. `mutate-check` each regression test, attach past decisions, write the PR body; the owner reviews and merges.
 
-The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchpad (else the OS temp folder), never inside `.git` or the working tree: Claude Code asks permission for files in `.git`, which stalls a headless run. `--no-pr` stops there. `--ask` (what `fix-findings` uses): each proven bug's fix is shown to the owner and kept only on a yes; simplify's tidy-ups still commit on their own.
+The PR body is written to `review-bolt-pr-<branch>.md` in the session's scratchpad (else the OS temp folder), never inside `.git` or the working tree: Claude Code asks permission for files in `.git`, which stalls a headless run. `--no-pr` stops there; `--no-review` skips the review rounds. `--ask` (what `fix-findings` uses): each proven bug's fix is shown to the owner and kept only on a yes; simplify's tidy-ups still commit on their own.
 
 ## Scripts
 

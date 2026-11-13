@@ -1,3 +1,5 @@
+<one "Closes #<n>" line per issue this branch fixes or closes, each on its own line; none → leave out. Never put close, closes, closed, fix, fixes, fixed, resolve, resolves or resolved right before a number that stays open: write "#<n> stays open".>
+
 ## Summary
 
 <two to four plain sentences a non-developer can follow: what changed and why>
@@ -14,23 +16,26 @@
 
 ## Review
 
-Rounds: <1|2> · proven: <n> · discarded: <n> · unverified: <n>
+Rounds: <0|1|2> · proven: <n> · discarded: <n> · unverified: <n>
+
+<Rounds = 0: "Rounds: 0 (owner chose the tidy-up only)." and no table or counts>
 
 | Finding | Fix | Regression test | mutate-check |
 |---|---|---|---|
-| <file:line — claim> | <file:line — the fix in a few words; not fixed → "Not fixed, see Needs owner"> | <test name and file> | <GUARDED, NOT GUARDED, the INVALID line, or not mutate-checkable> |
+| <file:line — claim> | <file:line — the fix in a few words; not fixed → "Not fixed, see Needs owner"; superseded → "Superseded by <short sha>: <reason>"; filed → "Filed as #<n>"> | <test name and file> | <GUARDED, NOT GUARDED, the INVALID line, or not mutate-checkable> |
 
 <no fixes → "No proven findings." instead of the table>
 
 Tests changed by fixes: <each `UPDATED-TEST` line; none → "None.">
 
-<`--ask` only: "Owner's word per fix:" then one line per fix: `file:line — yes` or `file:line — no: <the owner's words>`>
+<`--ask` only: "Owner's word per fix:" then one line per fix: `file:line — yes`, `file:line — no: <the owner's words>`, `file:line — superseded by <short sha>: <the owner's words>` or `file:line — filed as #<n>: <the owner's words>`>
 
 <Rounds = 2 only: "Round 2 reviewed only the fix lines (<n> findings outside them dropped). Round-2 fixes are covered by their proving tests and are not re-reviewed.">
 
 ## Same bug elsewhere (not fixed here)
 
 - <file:line — claim — issue #n, or "to file" with --no-pr; none → "None.">
+- <added-line fixes without siblings: "file:line — added-line fix: no nearby search">
 
 ## Past decisions
 
