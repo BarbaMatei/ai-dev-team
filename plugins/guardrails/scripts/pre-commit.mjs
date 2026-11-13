@@ -60,7 +60,7 @@ for (let i = 0; i < fields.length; i++) {
     i++;
   }
 }
-const { allowPaths, patterns: extra, extensions: exts, hint } = settings;
+const { allowPaths, patterns: extra, extensions: exts, ignore, hint } = settings;
 
 const secretHits = [];
 const commentHits = [];
@@ -70,7 +70,7 @@ for (const [old, file] of entries) {
   if (!matchesAny(file, allowPaths)) {
     for (const i of findSecrets(added.map((l) => l.text), extra)) secretHits.push(`${file}:${added[i - 1].no}`);
   }
-  if (!merging && exts.includes(path.extname(file).toLowerCase())) {
+  if (!merging && exts.includes(path.extname(file).toLowerCase()) && !matchesAny(file, ignore)) {
     for (const h of parts) {
       for (const i of newComments(h.removed, h.added.map((l) => l.text))) commentHits.push(`${file}:${h.added[i].no}: ${h.added[i].text.trim()}`);
     }

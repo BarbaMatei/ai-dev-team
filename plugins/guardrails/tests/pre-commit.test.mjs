@@ -267,3 +267,29 @@ test('the gate message says a new comment line always stops here', () => {
   put(d, 'a.cs', '// n\n');
   assert.match(run(d).out, /a new comment line always stops here; an edited one passes only when it does not grow\./);
 });
+
+test('comments.ignore skips matching files but not the secret check', () => {
+  const d = repo({ comments: { ignore: ['.vendored/**'] } });
+  put(d, '.vendored/a.cs', 'int x; // note\n');
+  put(d, 'b.cs', 'int y;\n');
+  assert.equal(run(d).code, 0);
+  put(d, '.vendored/c.cs', `var k = "${sk}"; // note\n`);
+  assert.equal(run(d).code, 1);
+  assert.match(run(d).out, /secret guard/);
+});
+
+test('comments.ignore leaves other files gated', () => {
+  const d = repo({ comments: { ignore: ['.vendored/**'] } });
+  put(d, 'b.cs', 'int y; // note\n');
+  assert.equal(run(d).code, 1);
+});
+
+test('comments.ignore that is not an array of strings is a config error', () => {
+  for (const ignore of ['.vendored/**', [1]]) {
+    const d = repo({ comments: { ignore } });
+    put(d, 'a.cs', 'int x;\n');
+    const r = run(d);
+    assert.equal(r.code, 2, JSON.stringify(ignore));
+    assert.match(r.err, /comments\.ignore must be an array of strings/);
+  }
+});

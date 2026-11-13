@@ -164,3 +164,14 @@ test('secrets: an edit to a file outside the project is still checked', () => {
   fs.mkdirSync(outside);
   assert.equal(call(d, 'secrets', 'Write', { file_path: path.join(outside, 'scratch.ts'), content: sk }).code, 2);
 });
+
+test('comments: a path matching comments.ignore is not checked', () => {
+  const d = repo({ comments: { ignore: ['.vendored/**'] } });
+  assert.equal(call(d, 'comments', 'Write', { file_path: path.join(d, '.vendored', 'a.ts'), content: '// note\n' }).code, 0);
+  assert.equal(call(d, 'comments', 'Write', { file_path: path.join(d, 'a.ts'), content: '// note\n' }).code, 2);
+});
+
+test('comments.ignore does not skip the secret check', () => {
+  const d = repo({ comments: { ignore: ['.vendored/**'] } });
+  assert.equal(call(d, 'secrets', 'Write', { file_path: path.join(d, '.vendored', 'a.ts'), content: sk }).code, 2);
+});

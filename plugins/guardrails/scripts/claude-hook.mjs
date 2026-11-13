@@ -75,7 +75,7 @@ process.stdin.on('end', () => {
     if (!out.length) return;
     out.push(settings.hint ?? 'Move the secret out of the repository.');
   } else if (mode === 'comments') {
-    if (rel.startsWith('..') || path.isAbsolute(rel)) return;
+    if (rel.startsWith('..') || path.isAbsolute(rel) || matchesAny(rel, settings.ignore)) return;
     if (!settings.extensions.includes(path.extname(abs).toLowerCase())) return;
     for (const e of list) {
       const oldLines = lines(e.old);

@@ -45,7 +45,7 @@ export function readSettings(cfg) {
     }
   }
   const extensions = comments.extensions === undefined ? DEFAULT_COMMENT_EXTENSIONS : strings(comments.extensions, 'comments.extensions');
-  return { patterns, allowPaths: strings(secrets.allowPaths, 'secrets.allowPaths'), hint: secrets.hint, extensions: extensions.map((e) => e.toLowerCase()) };
+  return { patterns, allowPaths: strings(secrets.allowPaths, 'secrets.allowPaths'), hint: secrets.hint, extensions: extensions.map((e) => e.toLowerCase()), ignore: strings(comments.ignore, 'comments.ignore') };
 }
 
 function heredocEnd(command, from, delim) {
