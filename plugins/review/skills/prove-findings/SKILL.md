@@ -29,7 +29,7 @@ A review finding survives only when a fresh subagent's test fails for the claime
 
 1. One fresh Agent per kept finding: `subagent_type: general-purpose`, `model: sonnet` (`haiku` when the claim names one function and one input). Never the session or subagent that wrote the code.
 2. Dispatch them one at a time: they share the working tree and the build. After each prover, check that every earlier PROVEN test still exists (grep its name in its file); one is gone → dispatch a fresh prover to write it again before going on.
-3. Pick the `<kind>` whose tests cover the finding's file: `<command>` = its `command` as written, `<dir>` = project root + its `cwd`. No `tests` configured: `<kind>` = `-`, `<command>` = "the project's test tool, filtered to this one test, never the whole suite". `<env>` = its `env` pairs as `NAME=value`, or `none`.
+3. Pick the `<kind>` whose tests cover the finding's file: `<command>` = its `command` as written, `<dir>` = project root + its `cwd`. No `tests` configured: `<kind>` = `-`, `<command>` = "the project's test tool, filtered to this one test, never the whole suite". `<env>` = its `env` pairs as `NAME=value`, or `none`. `<by-design list>` = the caller's `By-design:` lines, or `none`.
 4. Prompt (fill every `<...>` you know; the prover sees only its own finding):
 
 ```
@@ -65,7 +65,7 @@ BY-DESIGN <file:line> — <claim>
 discarded: <n> (<n> style/doc/consider, <n> missing-test, <n> by-design, <n> disproven, <n> untestable)
 ```
 
-`<kind>` is the `tests` key used and `<filter>` exactly what replaced `{filter}`: the bare value the kind's `command` wraps (a class or test name, a spec file prefix), never a full runner expression, so `mutate-check.mjs --kind <kind> --test <filter> --test-name <test name>` reuses them verbatim; `<regex>` is the prover's pattern; repro steps stay on one line. Always print the `discarded:` line, even when every count is 0.
+`<kind>` is the `tests` key used and `<filter>` exactly what replaced `{filter}`: the bare value the kind's `command` wraps (a class or test name, a spec file prefix), never a full runner expression, so `mutate-check.mjs --kind <kind> --test <filter>` reuses them verbatim, plus `--test-name <test name>` only when the kind has a `nameArg`; `<regex>` is the prover's pattern; repro steps stay on one line. Always print the `discarded:` line, even when every count is 0.
 
 ## Lessons
 
