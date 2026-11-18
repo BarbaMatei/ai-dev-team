@@ -9,13 +9,13 @@ Invoke the `simplify` skill with the Skill tool, args: the changes in <base>...H
 ## Step 6 — code review, round 1
 
 ```
-Invoke the built-in `code-review` skill with the Skill tool (never a plugin's `code-review:code-review`), args: high <base>...HEAD. If it reports it cannot use that target, invoke it again with args: high <current branch name>. Fix nothing. Reply only its findings, one per line: `<file:line> — <claim>`, or `none`.
+Invoke the built-in `code-review` skill with the Skill tool (never a plugin's `code-review:code-review`), args: high <pr> (`--no-pr`: high <base>...<branch name>). Read code only from `gh pr diff <pr>` and files under <worktree>, never from your own start folder, which holds another branch. Drop every finding whose file is not in `gh pr diff <pr> --name-only`. (`--no-pr`: read only files under <worktree>, and drop findings whose file is not in `git diff --name-only <base>...<branch name>`.) Fix nothing. Reply only its findings, one per line: `<file:line> — <claim>`, or `none`.
 ```
 
 ## Step 7 — security review
 
 ```
-Invoke the `security-review` skill with the Skill tool, limited to the changes in `git diff <base>...HEAD`, not the whole branch. Fix nothing. Reply with its findings only, one per line: `<file:line> — <claim>`, or `none`.
+Invoke the `security-review` skill with the Skill tool, limited to the changes in `gh pr diff <pr>` (`--no-pr`: `git diff <base>...<branch name>`), not the whole branch. Read code only from `gh pr diff <pr>` and files under <worktree>, never from your own start folder, which holds another branch. Drop every finding whose file is not in `gh pr diff <pr> --name-only`. Fix nothing. Reply with its findings only, one per line: `<file:line> — <claim>`, or `none`.
 ```
 
 ## Step 9 — fixer
@@ -42,7 +42,7 @@ Same bug shape as <claim>, fixed at <file:line>. Check these sites: <lines>. Whe
 ## Step 14 — code review, round 2
 
 ```
-Invoke the built-in `code-review` skill with the Skill tool (never a plugin's `code-review:code-review`), args: <the args from step 14>. Fix nothing. Reply only its findings, one per line: `<file:line> — <claim>`, or `none`.
+Invoke the built-in `code-review` skill with the Skill tool (never a plugin's `code-review:code-review`), args: <the args from step 14>. Read code only from <fix diff file> and files under <worktree>, never from your own start folder, which holds another branch. Fix nothing. Reply only its findings, one per line: `<file:line> — <claim>`, or `none`.
 ```
 
 ## Step 19 — strengthen a test

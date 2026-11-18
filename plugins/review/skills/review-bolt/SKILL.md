@@ -9,7 +9,7 @@ You review one finished branch (a bolt = one unit of work on its own branch, rev
 
 **Skills and subagents you call return intermediate results: after each one, continue with the next step. Your reply ends only at the last step.**
 
-- **Args:** `<base>` = `--base <ref>`, else `git merge-base HEAD origin/HEAD`, else `main`. `--no-pr`: write the PR body file only; push nothing, create no PR, file no issues (list them in the body instead). `--ask`: every fix of a proven bug waits for the owner's word (see Ask); simplify still commits on its own. `--no-review` (the owner chose the tidy-up only): steps 1-5, then 21-22; the PR body's Review section is `Rounds: 0 (owner chose the tidy-up only).` with no table.
+- **Args:** `<base>` = `--base <ref>`, else `git merge-base HEAD origin/HEAD`, else `main`. `--no-pr`: write the PR body file only; push nothing, create no PR, file no issues (list them in the body instead); the reviewers then get explicit refs (`<base>...<branch name>`) instead of a PR number. `--ask`: every fix of a proven bug waits for the owner's word (see Ask); simplify still commits on its own. `--no-review` (the owner chose the tidy-up only): steps 1-5, then 21-22; the PR body's Review section is `Rounds: 0 (owner chose the tidy-up only).` with no table.
 - **Default branch:** `git symbolic-ref --short refs/remotes/origin/HEAD` without the `origin/` prefix; if that fails, `main`.
 - **Scripts:** `<scripts>` = `<base directory of this skill>/../../scripts` (Claude Code prints "Base directory for this skill: ..." when this skill loads). Run them from the project root.
 - **Prompts:** every subagent prompt is in `prompts.md` beside this file under its step number; fill every `<...>`. Helpers never run `git checkout`, `git restore`, `git stash` or `git clean` (proving tests are uncommitted in the tree): they undo their own edits by editing the files.
@@ -24,6 +24,7 @@ You review one finished branch (a bolt = one unit of work on its own branch, rev
 1. On the default branch → stop: review-bolt reviews a bolt branch.
 2. `git status --porcelain` not empty → list the files and ask whether to commit them; round 2 needs a clean tree.
 3. `node "<scripts>/areas.mjs" touched --base <base>` → the touched areas and the `trigger:` line.
+3a. Unless `--no-pr`: `git push -u origin HEAD`; `gh pr view` finds a PR → reuse it, else `gh pr create --draft --base <base if it is a branch name; if it is a commit SHA, the default branch> --title "<one-line conventional subject>" --body "Draft: review in progress."`; `<pr>` = its number. Always: `<worktree>` = `git rev-parse --show-toplevel`. The built-in reviewers start in the session's folder, which may hold another branch; a PR number points them at this one.
 
 ## Simplify
 
@@ -55,7 +56,7 @@ C. Yes → `git apply <patch>`; it fails → `git apply --ignore-whitespace <pat
 
 ## Round 2 — only if steps 9-12 changed code
 
-14. Write the fix lines to `<tmp>/review-bolt-fixes-<branch with / replaced by ->.diff`: `git diff HEAD -U0` (with `--ask`: `git diff <fixbase> -U0`). Dispatch the step-14 subagent with args `medium` and no target while the fixes are uncommitted (with `--ask`: `medium <fixbase>...HEAD`; if it cannot use that target, `medium <current branch name>`). Keep only findings whose `file:line` lies inside a hunk of that file, or in a file the fixes added, and that do not repeat a round-1 finding (same file, same claim); drop the rest and count them for the PR body as "outside the fix lines". Rounds = 2.
+14. Write the fix lines to `<tmp>/review-bolt-fixes-<branch with / replaced by ->.diff`: `git diff HEAD -U0` (with `--ask`: `git diff <fixbase> -U0`). Dispatch the step-14 subagent with args `medium` and no target while the fixes are uncommitted (with `--ask`: `medium <fixbase>...<branch name>`, never HEAD; if it cannot use that target, `medium <branch name>`); it reads code only from that diff file and `<worktree>`. Keep only findings whose `file:line` lies inside a hunk of that file, or in a file the fixes added, and that do not repeat a round-1 finding (same file, same claim); drop the rest and count them for the PR body as "outside the fix lines". Rounds = 2.
 15. Invoke `review:prove-findings` on the kept findings with args `base <base>, uncommitted changes only` (with `--ask`: `base <fixbase>`) and the By-design lines; fix each PROVEN line with steps 9-10 (and Ask).
 16. No round 3 and no re-review: anything still open goes under "Needs owner".
 
@@ -69,7 +70,7 @@ C. Yes → `git apply <patch>`; it fails → `git apply --ignore-whitespace <pat
 ## PR body
 
 21. Read the record file and `<base directory of this skill>/pr-body.md`, replace every `<...>` as its placeholders say, and write it to the PR body file (see Temp files; never committed). Each UNVERIFIED line goes under "Needs owner" with its repro.
-22. Unless `--no-pr`: `git push -u origin HEAD`; `gh pr view` finds a PR → `gh pr edit --body-file <PR body file>`, else `gh pr create --base <base if it is a branch name; if it is a commit SHA, the default branch> --title "<one-line conventional subject>" --body-file <PR body file>`. Never merge; never push the default branch. Then `gh pr view --json closingIssuesReferences --jq '[.closingIssuesReferences[].number]'` must equal the issues the body means to close; they differ → fix the `Closes` lines (pr-body.md rule) and edit once more; still different → say so in the reply.
+22. Unless `--no-pr`: `git push -u origin HEAD`, then `gh pr edit <pr> --body-file <PR body file>` and `gh pr ready <pr>`. Never merge; never push the default branch. Then `gh pr view --json closingIssuesReferences --jq '[.closingIssuesReferences[].number]'` must equal the issues the body means to close; they differ → fix the `Closes` lines (pr-body.md rule) and edit once more; still different → say so in the reply.
 
 ## Reply
 
